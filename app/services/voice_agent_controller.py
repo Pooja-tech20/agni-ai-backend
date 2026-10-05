@@ -47,10 +47,22 @@ class VoiceAgentController:
         self.memory = ConversationMemoryService(db)
 
     # --- Session lifecycle ---------------------------------------------
+        # --- Session lifecycle ---------------------------------------------
     def start_session(self, client_id: uuid.UUID, agent_id: uuid.UUID, metadata: dict | None = None):
-        from app.models.call import Call  # local import avoids a module-level cycle
-
         from datetime import datetime, timezone
+
+        from app.core.exceptions import AgentInactiveError, ResourceNotFoundError
+        from app.models.agent import Agent
+        from app.models.call import Call  # local import avoids a module-level cycle
+        from app.models.client import Client
+
+        if not self.db.get(Client, client_id):
+            raise ResourceNotFoundError(f"Client '{client_id}' not found")
+        agent = self.db.get(Agent, agent_id)
+        if not agent or agent.client_id != client_id:
+            raise ResourceNotFoundError(f"Agent '{agent_id}' not found for this client")
+        if agent.status != "active":
+            raise AgentInactiveError(f"Agent '{agent.name}' is inactive")
 
         call = Call(
             client_id=client_id,
@@ -69,8 +81,9 @@ class VoiceAgentController:
         return state, call
 
     def end_session(self, session_id: str):
-        from app.models.call import Call
         from datetime import datetime, timezone
+
+        from app.models.call import Call
 
         state = self.sessions.end_session(session_id)
         call = self.db.query(Call).filter(Call.id == state.call_id).first()
@@ -82,6 +95,7 @@ class VoiceAgentController:
                 if started.tzinfo is None:
                     started = started.replace(tzinfo=timezone.utc)
                 call.duration_seconds = int((call.ended_at - started).total_seconds())
+            self.db.commit()  # <-- this line was missing in your copy
         return state
 
     # --- Single-turn request/response (Day 2, and the non-streaming Day 3 path) ---

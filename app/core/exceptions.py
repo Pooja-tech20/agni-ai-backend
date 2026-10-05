@@ -53,6 +53,15 @@ class SessionAlreadyEndedError(AppError):
     status_code = status.HTTP_409_CONFLICT
     code = "SESSION_ALREADY_ENDED"
 
+# --- Resource errors ----------------------------------------------------
+class ResourceNotFoundError(AppError):
+    status_code = status.HTTP_404_NOT_FOUND
+    code = "RESOURCE_NOT_FOUND"
+
+
+class AgentInactiveError(AppError):
+    status_code = status.HTTP_409_CONFLICT
+    code = "AGENT_INACTIVE"
 
 # --- Request validation (beyond what Pydantic covers) --------------------
 class InvalidAudioError(AppError):

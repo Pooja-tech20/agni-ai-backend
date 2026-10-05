@@ -1,19 +1,24 @@
 """
-Voice-agent endpoints.
+Voice-agent endpoints (all require login).
 
-Day 2:  POST /voice/session, /voice/audio, /voice/message — isolated,
-        request/response pieces of the pipeline, with request validation
-        and structured errors.
-Day 3:  session -> audio -> STT -> memory -> LLM is fully wired through
-        VoiceAgentController; GET /voice/session/{id}/history and
-        POST /voice/session/{id}/end round out session-state management;
-        WS /voice/session/{id}/stream is the full-duplex STT->LLM->TTS
-        controller with barge-in.
+POST /voice/session                  start a call (client comes from the token)
+POST /voice/session/{id}/end         end the call
+GET  /voice/session/{id}/history     transcript so far
+POST /voice/audio                    one voice turn (audio in, audio out)
+POST /voice/message                  one text turn (no STT/TTS)
+WS   /voice/session/{id}/stream?token=<JWT>   live full-duplex call with barge-in
 """
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+import uuid
+
+from fastapi import APIRouter, Depends, HTTPException, Query, WebSocket, WebSocketDisconnect, status
 from sqlalchemy.orm import Session
 
+from app.api.dependencies import get_current_user
+from app.core.exceptions import AppError, SessionNotFoundError
+from app.core.security import decode_access_token
 from app.db.session import get_db
+from app.models.roles import UserRole
+from app.models.user import User
 from app.schemas.voice import (
     SessionStatus,
     VoiceAudioRequest,
@@ -35,20 +40,43 @@ def get_controller(db: Session = Depends(get_db)) -> VoiceAgentController:
     return VoiceAgentController(db=db)
 
 
+def _authorize_session(controller: VoiceAgentController, session_id: str, user: User):
+    """Return the session only if it belongs to the caller's organization.
+    Others get the same 'not found' as a missing session."""
+    state = controller.sessions.get_session(session_id, touch=False)
+    if user.role != UserRole.SUPERADMIN.value and state.client_id != user.client_id:
+        raise SessionNotFoundError(f"No active session with id '{session_id}'")
+    return state
+
+
 @router.post("/session", response_model=VoiceSessionResponse, status_code=201)
 async def create_voice_session(
     payload: VoiceSessionCreateRequest,
     controller: VoiceAgentController = Depends(get_controller),
+    current_user: User = Depends(get_current_user),
 ):
     """Starts a new voice session: creates the backing Call record and an
     in-memory session with a fresh session_id."""
+    if current_user.role == UserRole.SUPERADMIN.value:
+        client_id = payload.client_id
+        if client_id is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "client_id is required")
+    else:
+        if payload.client_id and payload.client_id != current_user.client_id:
+            raise HTTPException(
+                status.HTTP_403_FORBIDDEN, "You can only start calls in your own organization"
+            )
+        client_id = current_user.client_id
+        if client_id is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "Your account has no organization")
+
     state, call = controller.start_session(
-        client_id=payload.client_id, agent_id=payload.agent_id, metadata=payload.metadata
+        client_id=client_id, agent_id=payload.agent_id, metadata=payload.metadata
     )
     return VoiceSessionResponse(
         session_id=state.session_id,
         call_id=call.id,
-        client_id=payload.client_id,
+        client_id=client_id,
         agent_id=payload.agent_id,
         status=SessionStatus.ACTIVE,
         created_at=state.created_at,
@@ -59,7 +87,9 @@ async def create_voice_session(
 async def end_voice_session(
     session_id: str,
     controller: VoiceAgentController = Depends(get_controller),
+    current_user: User = Depends(get_current_user),
 ):
+    _authorize_session(controller, session_id, current_user)
     state = controller.end_session(session_id)
     from app.models.call import Call
 
@@ -75,8 +105,9 @@ async def end_voice_session(
 async def get_voice_session_history(
     session_id: str,
     controller: VoiceAgentController = Depends(get_controller),
+    current_user: User = Depends(get_current_user),
 ):
-    state = controller.sessions.get_session(session_id, touch=False)
+    state = _authorize_session(controller, session_id, current_user)
     memory = ConversationMemoryService(controller.db)
     history = memory.get_history(state.call_id, limit=1000)
     return VoiceHistoryResponse(
@@ -89,10 +120,12 @@ async def get_voice_session_history(
 async def post_voice_audio(
     payload: VoiceAudioRequest,
     controller: VoiceAgentController = Depends(get_controller),
+    current_user: User = Depends(get_current_user),
 ):
     """session -> audio -> STT -> conversation memory -> LLM -> TTS, one turn."""
     import base64
 
+    _authorize_session(controller, payload.session_id, current_user)
     transcript, reply_text, reply_audio, turn_count = await controller.handle_audio_turn(
         session_id=payload.session_id,
         audio_base64=payload.audio_base64,
@@ -111,8 +144,10 @@ async def post_voice_audio(
 async def post_voice_message(
     payload: VoiceMessageRequest,
     controller: VoiceAgentController = Depends(get_controller),
+    current_user: User = Depends(get_current_user),
 ):
     """Text-only path: session -> conversation memory -> LLM (no STT/TTS)."""
+    _authorize_session(controller, payload.session_id, current_user)
     reply_text, turn_count = await controller.handle_text_turn(
         session_id=payload.session_id, text=payload.text
     )
@@ -123,15 +158,36 @@ async def post_voice_message(
 async def voice_session_stream(
     websocket: WebSocket,
     session_id: str,
+    token: str | None = Query(None, description="JWT access token"),
     db: Session = Depends(get_db),
 ):
     """
     Full-duplex voice-agent controller: STT -> LLM -> TTS over one
     connection, with interruption/barge-in support. See
     VoiceAgentController.run_streaming_session for the message protocol.
+
+    Browsers can't set headers on a WebSocket, so the JWT goes in ?token=.
+    Close codes: 4401 not logged in, 4404 session not found / not yours.
     """
-    await websocket.accept()
+    user = None
+    if token:
+        try:
+            user_id = uuid.UUID(str(decode_access_token(token).get("sub")))
+            user = db.get(User, user_id)
+        except (ValueError, TypeError):
+            user = None
+    if user is None or not user.is_active:
+        await websocket.close(code=4401)
+        return
+
     controller = VoiceAgentController(db=db)
+    try:
+        _authorize_session(controller, session_id, user)
+    except AppError:
+        await websocket.close(code=4404)
+        return
+
+    await websocket.accept()
     try:
         await controller.run_streaming_session(session_id, websocket)
     except WebSocketDisconnect:

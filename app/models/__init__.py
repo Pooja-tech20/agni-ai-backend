@@ -9,5 +9,7 @@ from app.models.client import Client      # noqa: F401
 from app.models.agent import Agent        # noqa: F401
 from app.models.call import Call          # noqa: F401
 from app.models.call_message import CallMessage  # noqa: F401
+from app.models.knowledge_base import KnowledgeBase, KnowledgeSource
+
 
 __all__ = ["User", "Client", "Agent", "Call", "CallMessage"]

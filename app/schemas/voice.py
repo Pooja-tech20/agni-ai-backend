@@ -16,7 +16,7 @@ class SessionStatus(str, Enum):
 
 # --- POST /voice/session ---------------------------------------------------
 class VoiceSessionCreateRequest(BaseSchema):
-    client_id: uuid.UUID
+    client_id: uuid.UUID | None = None
     agent_id: uuid.UUID
     metadata: dict = Field(default_factory=dict)
 
