@@ -1,3 +1,443 @@
+# import uuid
+
+# from pathlib import Path
+# import shutil
+
+# from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+# from sqlalchemy import select
+# from sqlalchemy.orm import Session
+
+# from app.db.session import get_db
+# from app.models.knowledge_base import KnowledgeBase, KnowledgeSource
+# from app.schemas.knowledge_base import (
+#     KnowledgeBaseCreateRequest,
+#     KnowledgeBaseListResponse,
+#     KnowledgeBaseResponse,
+#     KnowledgeBaseUpdateRequest,
+#     KnowledgeSourceCreateRequest,
+#     KnowledgeSourceListResponse,
+#     KnowledgeSourceResponse,
+# )
+
+# router = APIRouter(
+#     prefix="/knowledge-bases",
+#     tags=["Knowledge Base"],
+# )
+# ALLOWED_FILE_EXTENSIONS = {
+#     ".pdf",
+#     ".txt",
+#     ".docx",
+#     ".md",
+# }
+
+
+# # ============================================================
+# # KNOWLEDGE BASE
+# # ============================================================
+
+# @router.post(
+#     "",
+#     response_model=KnowledgeBaseResponse,
+#     status_code=status.HTTP_201_CREATED,
+# )
+# def create_knowledge_base(
+#     payload: KnowledgeBaseCreateRequest,
+#     db: Session = Depends(get_db),
+# ):
+#     knowledge_base = KnowledgeBase(
+#         name=payload.name,
+#         description=payload.description,
+#         status="active",
+#     )
+
+#     db.add(knowledge_base)
+#     db.commit()
+#     db.refresh(knowledge_base)
+
+#     return knowledge_base
+
+
+# @router.get(
+#     "",
+#     response_model=KnowledgeBaseListResponse,
+# )
+# def list_knowledge_bases(
+#     db: Session = Depends(get_db),
+# ):
+#     items = list(
+#         db.scalars(
+#             select(KnowledgeBase).order_by(
+#                 KnowledgeBase.created_at.desc()
+#             )
+#         )
+#     )
+
+#     return KnowledgeBaseListResponse(
+#         total=len(items),
+#         items=items,
+#     )
+
+
+# @router.get(
+#     "/{knowledge_base_id}",
+#     response_model=KnowledgeBaseResponse,
+# )
+# def get_knowledge_base(
+#     knowledge_base_id: uuid.UUID,
+#     db: Session = Depends(get_db),
+# ):
+#     knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+
+#     if knowledge_base is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Knowledge base not found",
+#         )
+
+#     return knowledge_base
+
+
+# @router.patch(
+#     "/{knowledge_base_id}",
+#     response_model=KnowledgeBaseResponse,
+# )
+# def update_knowledge_base(
+#     knowledge_base_id: uuid.UUID,
+#     payload: KnowledgeBaseUpdateRequest,
+#     db: Session = Depends(get_db),
+# ):
+#     knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+
+#     if knowledge_base is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Knowledge base not found",
+#         )
+
+#     updates = payload.model_dump(exclude_unset=True)
+
+#     for field, value in updates.items():
+#         setattr(knowledge_base, field, value)
+
+#     db.commit()
+#     db.refresh(knowledge_base)
+
+#     return knowledge_base
+
+
+# @router.delete(
+#     "/{knowledge_base_id}",
+#     status_code=status.HTTP_204_NO_CONTENT,
+# )
+# def delete_knowledge_base(
+#     knowledge_base_id: uuid.UUID,
+#     db: Session = Depends(get_db),
+# ):
+#     knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+
+#     if knowledge_base is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Knowledge base not found",
+#         )
+
+#     db.delete(knowledge_base)
+#     db.commit()
+
+#     return None
+
+
+# # ============================================================
+# # KNOWLEDGE SOURCES
+# # ============================================================
+
+# @router.post(
+#     "/{knowledge_base_id}/sources",
+#     response_model=KnowledgeSourceResponse,
+#     status_code=status.HTTP_201_CREATED,
+# )
+# def create_source(
+#     knowledge_base_id: uuid.UUID,
+#     payload: KnowledgeSourceCreateRequest,
+#     db: Session = Depends(get_db),
+# ):
+#     knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+
+#     if knowledge_base is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Knowledge base not found",
+#         )
+
+#     if payload.source_type == "text" and not payload.content:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="Content is required for text sources",
+#         )
+
+#     if payload.source_type == "url" and not payload.url:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="URL is required for URL sources",
+#         )
+
+#     if payload.source_type == "file" and not payload.file_name:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="File name is required for file sources",
+#         )
+
+#     source = KnowledgeSource(
+#         knowledge_base_id=knowledge_base_id,
+#         title=payload.title,
+#         source_type=payload.source_type,
+#         content=payload.content,
+#         url=payload.url,
+#         file_name=payload.file_name,
+#         file_size=payload.file_size,
+#         status="active",
+#     )
+
+#     db.add(source)
+#     db.commit()
+#     db.refresh(source)
+
+#     return source
+
+# @router.post(
+#     "/{knowledge_base_id}/sources/upload",
+#     response_model=KnowledgeSourceResponse,
+#     status_code=status.HTTP_201_CREATED,
+# )
+# def upload_source(
+#     knowledge_base_id: uuid.UUID,
+#     file: UploadFile = File(...),
+#     db: Session = Depends(get_db),
+# ):
+#     # --------------------------------------------------------
+#     # 1. Check knowledge base
+#     # --------------------------------------------------------
+#     knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+
+#     if knowledge_base is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Knowledge base not found",
+#         )
+
+#     # --------------------------------------------------------
+#     # 2. Validate filename
+#     # --------------------------------------------------------
+#     if not file.filename:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail="File name is required",
+#         )
+
+#     original_filename = Path(file.filename).name
+#     extension = Path(original_filename).suffix.lower()
+
+#     # --------------------------------------------------------
+#     # 3. Validate file type
+#     # --------------------------------------------------------
+#     if extension not in ALLOWED_FILE_EXTENSIONS:
+#         raise HTTPException(
+#             status_code=status.HTTP_400_BAD_REQUEST,
+#             detail=(
+#                 "Unsupported file type. "
+#                 "Allowed types: PDF, TXT, DOCX, MD"
+#             ),
+#         )
+
+#     # --------------------------------------------------------
+#     # 4. Create source record
+#     # --------------------------------------------------------
+#     source = KnowledgeSource(
+#         knowledge_base_id=knowledge_base_id,
+#         title=Path(original_filename).stem,
+#         source_type="file",
+#         file_name=original_filename,
+#         file_size=0,
+#         status="active",
+#     )
+
+#     db.add(source)
+
+#     # Generate source ID before saving the file
+#     db.flush()
+
+#     # --------------------------------------------------------
+#     # 5. Create upload directory
+#     # --------------------------------------------------------
+#     upload_directory = (
+#         Path("uploads")
+#         / "knowledge_base"
+#         / str(knowledge_base_id)
+#     )
+
+#     upload_directory.mkdir(
+#         parents=True,
+#         exist_ok=True,
+#     )
+
+#     # --------------------------------------------------------
+#     # 6. Use source ID as stored filename
+#     # --------------------------------------------------------
+#     stored_filename = f"{source.id}{extension}"
+#     stored_path = upload_directory / stored_filename
+
+#     try:
+#         # ----------------------------------------------------
+#         # 7. Save file to disk
+#         # ----------------------------------------------------
+#         with stored_path.open("wb") as destination:
+#             shutil.copyfileobj(
+#                 file.file,
+#                 destination,
+#             )
+
+#         # ----------------------------------------------------
+#         # 8. Save actual file size
+#         # ----------------------------------------------------
+#         source.file_size = stored_path.stat().st_size
+
+#         # ----------------------------------------------------
+#         # 9. Commit database record
+#         # ----------------------------------------------------
+#         db.commit()
+#         db.refresh(source)
+
+#         return source
+
+#     except Exception:
+#         db.rollback()
+
+#         if stored_path.exists():
+#             stored_path.unlink()
+
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="Failed to upload file",
+#         )
+
+#     finally:
+#         file.file.close()
+
+# @router.get(
+#     "/{knowledge_base_id}/sources",
+#     response_model=KnowledgeSourceListResponse,
+# )
+# def list_sources(
+#     knowledge_base_id: uuid.UUID,
+#     db: Session = Depends(get_db),
+# ):
+#     knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+
+#     if knowledge_base is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Knowledge base not found",
+#         )
+
+#     items = list(
+#         db.scalars(
+#             select(KnowledgeSource)
+#             .where(
+#                 KnowledgeSource.knowledge_base_id == knowledge_base_id
+#             )
+#             .order_by(KnowledgeSource.created_at.desc())
+#         )
+#     )
+
+#     return KnowledgeSourceListResponse(
+#         total=len(items),
+#         items=items,
+#     )
+
+
+# @router.get(
+#     "/{knowledge_base_id}/sources/{source_id}",
+#     response_model=KnowledgeSourceResponse,
+# )
+# def get_source(
+#     knowledge_base_id: uuid.UUID,
+#     source_id: uuid.UUID,
+#     db: Session = Depends(get_db),
+# ):
+#     source = db.scalar(
+#         select(KnowledgeSource).where(
+#             KnowledgeSource.id == source_id,
+#             KnowledgeSource.knowledge_base_id == knowledge_base_id,
+#         )
+#     )
+
+#     if source is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Knowledge source not found",
+#         )
+
+#     return source
+
+
+
+# @router.delete(
+#     "/{knowledge_base_id}/sources/{source_id}",
+#     status_code=status.HTTP_200_OK,
+# )
+# def delete_source(
+#     knowledge_base_id: uuid.UUID,
+#     source_id: uuid.UUID,
+#     db: Session = Depends(get_db),
+# ):
+#     # Find the source belonging to the given knowledge base
+#     source = db.scalar(
+#         select(KnowledgeSource).where(
+#             KnowledgeSource.id == source_id,
+#             KnowledgeSource.knowledge_base_id == knowledge_base_id,
+#         )
+#     )
+
+#     if source is None:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Knowledge source not found",
+#         )
+
+#     # Build the physical file path
+#     stored_path = None
+
+#     if source.source_type == "file" and source.file_name:
+#         extension = Path(source.file_name).suffix.lower()
+
+#         stored_path = (
+#             Path("uploads")
+#             / "knowledge_base"
+#             / str(knowledge_base_id)
+#             / f"{source.id}{extension}"
+#         )
+
+#     try:
+#         # Delete database record
+#         db.delete(source)
+#         db.commit()
+
+#         # Delete physical uploaded file
+#         if stored_path and stored_path.exists():
+#             stored_path.unlink()
+
+#         return {
+#             "message": "File deleted successfully"
+#         }
+
+#     except Exception:
+#         db.rollback()
+
+#         raise HTTPException(
+#             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+#             detail="Failed to delete file",
+#         )
+
 import uuid
 
 from pathlib import Path
@@ -23,6 +463,7 @@ router = APIRouter(
     prefix="/knowledge-bases",
     tags=["Knowledge Base"],
 )
+
 ALLOWED_FILE_EXTENSIONS = {
     ".pdf",
     ".txt",
@@ -86,7 +527,10 @@ def get_knowledge_base(
     knowledge_base_id: uuid.UUID,
     db: Session = Depends(get_db),
 ):
-    knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+    knowledge_base = db.get(
+        KnowledgeBase,
+        knowledge_base_id,
+    )
 
     if knowledge_base is None:
         raise HTTPException(
@@ -106,7 +550,10 @@ def update_knowledge_base(
     payload: KnowledgeBaseUpdateRequest,
     db: Session = Depends(get_db),
 ):
-    knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+    knowledge_base = db.get(
+        KnowledgeBase,
+        knowledge_base_id,
+    )
 
     if knowledge_base is None:
         raise HTTPException(
@@ -114,10 +561,16 @@ def update_knowledge_base(
             detail="Knowledge base not found",
         )
 
-    updates = payload.model_dump(exclude_unset=True)
+    updates = payload.model_dump(
+        exclude_unset=True
+    )
 
     for field, value in updates.items():
-        setattr(knowledge_base, field, value)
+        setattr(
+            knowledge_base,
+            field,
+            value,
+        )
 
     db.commit()
     db.refresh(knowledge_base)
@@ -125,15 +578,25 @@ def update_knowledge_base(
     return knowledge_base
 
 
+# ============================================================
+# DELETE KNOWLEDGE BASE
+# ============================================================
+
 @router.delete(
     "/{knowledge_base_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
 )
 def delete_knowledge_base(
     knowledge_base_id: uuid.UUID,
     db: Session = Depends(get_db),
 ):
-    knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+    # --------------------------------------------------------
+    # 1. Find knowledge base
+    # --------------------------------------------------------
+    knowledge_base = db.get(
+        KnowledgeBase,
+        knowledge_base_id,
+    )
 
     if knowledge_base is None:
         raise HTTPException(
@@ -141,10 +604,46 @@ def delete_knowledge_base(
             detail="Knowledge base not found",
         )
 
-    db.delete(knowledge_base)
-    db.commit()
+    # --------------------------------------------------------
+    # 2. Upload directory
+    # --------------------------------------------------------
+    upload_directory = (
+        Path("uploads")
+        / "knowledge_base"
+        / str(knowledge_base_id)
+    )
 
-    return None
+    try:
+        # ----------------------------------------------------
+        # 3. Delete database record
+        # ----------------------------------------------------
+        db.delete(knowledge_base)
+        db.commit()
+
+        # ----------------------------------------------------
+        # 4. Delete uploaded files
+        # ----------------------------------------------------
+        if upload_directory.exists():
+            shutil.rmtree(upload_directory)
+
+        # ----------------------------------------------------
+        # 5. Success response
+        # ----------------------------------------------------
+        return {
+            "success": True,
+            "message": "Knowledge base deleted successfully",
+        }
+
+    except Exception:
+        # ----------------------------------------------------
+        # Rollback database transaction
+        # ----------------------------------------------------
+        db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete knowledge base",
+        )
 
 
 # ============================================================
@@ -161,7 +660,13 @@ def create_source(
     payload: KnowledgeSourceCreateRequest,
     db: Session = Depends(get_db),
 ):
-    knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+    # --------------------------------------------------------
+    # 1. Check knowledge base
+    # --------------------------------------------------------
+    knowledge_base = db.get(
+        KnowledgeBase,
+        knowledge_base_id,
+    )
 
     if knowledge_base is None:
         raise HTTPException(
@@ -169,24 +674,45 @@ def create_source(
             detail="Knowledge base not found",
         )
 
-    if payload.source_type == "text" and not payload.content:
+    # --------------------------------------------------------
+    # 2. Validate text source
+    # --------------------------------------------------------
+    if (
+        payload.source_type == "text"
+        and not payload.content
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Content is required for text sources",
         )
 
-    if payload.source_type == "url" and not payload.url:
+    # --------------------------------------------------------
+    # 3. Validate URL source
+    # --------------------------------------------------------
+    if (
+        payload.source_type == "url"
+        and not payload.url
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="URL is required for URL sources",
         )
 
-    if payload.source_type == "file" and not payload.file_name:
+    # --------------------------------------------------------
+    # 4. Validate file source
+    # --------------------------------------------------------
+    if (
+        payload.source_type == "file"
+        and not payload.file_name
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="File name is required for file sources",
         )
 
+    # --------------------------------------------------------
+    # 5. Create source
+    # --------------------------------------------------------
     source = KnowledgeSource(
         knowledge_base_id=knowledge_base_id,
         title=payload.title,
@@ -204,6 +730,11 @@ def create_source(
 
     return source
 
+
+# ============================================================
+# UPLOAD KNOWLEDGE SOURCE
+# ============================================================
+
 @router.post(
     "/{knowledge_base_id}/sources/upload",
     response_model=KnowledgeSourceResponse,
@@ -217,7 +748,10 @@ def upload_source(
     # --------------------------------------------------------
     # 1. Check knowledge base
     # --------------------------------------------------------
-    knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+    knowledge_base = db.get(
+        KnowledgeBase,
+        knowledge_base_id,
+    )
 
     if knowledge_base is None:
         raise HTTPException(
@@ -234,8 +768,13 @@ def upload_source(
             detail="File name is required",
         )
 
-    original_filename = Path(file.filename).name
-    extension = Path(original_filename).suffix.lower()
+    original_filename = Path(
+        file.filename
+    ).name
+
+    extension = Path(
+        original_filename
+    ).suffix.lower()
 
     # --------------------------------------------------------
     # 3. Validate file type
@@ -263,7 +802,7 @@ def upload_source(
 
     db.add(source)
 
-    # Generate source ID before saving the file
+    # Generate source ID
     db.flush()
 
     # --------------------------------------------------------
@@ -281,14 +820,20 @@ def upload_source(
     )
 
     # --------------------------------------------------------
-    # 6. Use source ID as stored filename
+    # 6. Generate stored filename
     # --------------------------------------------------------
-    stored_filename = f"{source.id}{extension}"
-    stored_path = upload_directory / stored_filename
+    stored_filename = (
+        f"{source.id}{extension}"
+    )
+
+    stored_path = (
+        upload_directory
+        / stored_filename
+    )
 
     try:
         # ----------------------------------------------------
-        # 7. Save file to disk
+        # 7. Save file
         # ----------------------------------------------------
         with stored_path.open("wb") as destination:
             shutil.copyfileobj(
@@ -297,9 +842,11 @@ def upload_source(
             )
 
         # ----------------------------------------------------
-        # 8. Save actual file size
+        # 8. Get actual file size
         # ----------------------------------------------------
-        source.file_size = stored_path.stat().st_size
+        source.file_size = (
+            stored_path.stat().st_size
+        )
 
         # ----------------------------------------------------
         # 9. Commit database record
@@ -310,8 +857,14 @@ def upload_source(
         return source
 
     except Exception:
+        # ----------------------------------------------------
+        # Rollback database
+        # ----------------------------------------------------
         db.rollback()
 
+        # ----------------------------------------------------
+        # Remove partially uploaded file
+        # ----------------------------------------------------
         if stored_path.exists():
             stored_path.unlink()
 
@@ -323,6 +876,11 @@ def upload_source(
     finally:
         file.file.close()
 
+
+# ============================================================
+# LIST KNOWLEDGE SOURCES
+# ============================================================
+
 @router.get(
     "/{knowledge_base_id}/sources",
     response_model=KnowledgeSourceListResponse,
@@ -331,7 +889,13 @@ def list_sources(
     knowledge_base_id: uuid.UUID,
     db: Session = Depends(get_db),
 ):
-    knowledge_base = db.get(KnowledgeBase, knowledge_base_id)
+    # --------------------------------------------------------
+    # 1. Check knowledge base
+    # --------------------------------------------------------
+    knowledge_base = db.get(
+        KnowledgeBase,
+        knowledge_base_id,
+    )
 
     if knowledge_base is None:
         raise HTTPException(
@@ -339,13 +903,19 @@ def list_sources(
             detail="Knowledge base not found",
         )
 
+    # --------------------------------------------------------
+    # 2. Get sources
+    # --------------------------------------------------------
     items = list(
         db.scalars(
             select(KnowledgeSource)
             .where(
-                KnowledgeSource.knowledge_base_id == knowledge_base_id
+                KnowledgeSource.knowledge_base_id
+                == knowledge_base_id
             )
-            .order_by(KnowledgeSource.created_at.desc())
+            .order_by(
+                KnowledgeSource.created_at.desc()
+            )
         )
     )
 
@@ -354,6 +924,10 @@ def list_sources(
         items=items,
     )
 
+
+# ============================================================
+# GET SINGLE KNOWLEDGE SOURCE
+# ============================================================
 
 @router.get(
     "/{knowledge_base_id}/sources/{source_id}",
@@ -367,7 +941,8 @@ def get_source(
     source = db.scalar(
         select(KnowledgeSource).where(
             KnowledgeSource.id == source_id,
-            KnowledgeSource.knowledge_base_id == knowledge_base_id,
+            KnowledgeSource.knowledge_base_id
+            == knowledge_base_id,
         )
     )
 
@@ -379,20 +954,27 @@ def get_source(
 
     return source
 
+# ============================================================
+# DELETE KNOWLEDGE SOURCE
+# ============================================================
 
 @router.delete(
     "/{knowledge_base_id}/sources/{source_id}",
-    status_code=status.HTTP_204_NO_CONTENT,
+    status_code=status.HTTP_200_OK,
 )
 def delete_source(
     knowledge_base_id: uuid.UUID,
     source_id: uuid.UUID,
     db: Session = Depends(get_db),
 ):
+    # --------------------------------------------------------
+    # 1. Find source
+    # --------------------------------------------------------
     source = db.scalar(
         select(KnowledgeSource).where(
             KnowledgeSource.id == source_id,
-            KnowledgeSource.knowledge_base_id == knowledge_base_id,
+            KnowledgeSource.knowledge_base_id
+            == knowledge_base_id,
         )
     )
 
@@ -402,7 +984,43 @@ def delete_source(
             detail="Knowledge source not found",
         )
 
-    db.delete(source)
-    db.commit()
+    # --------------------------------------------------------
+    # 2. Delete uploaded file if source is a file
+    # --------------------------------------------------------
+    if source.source_type == "file":
+        upload_directory = (
+            Path("uploads")
+            / "knowledge_base"
+            / str(knowledge_base_id)
+        )
 
-    return None
+        # Files are stored using source.id + extension
+        if upload_directory.exists():
+            for file_path in upload_directory.glob(
+                f"{source.id}.*"
+            ):
+                try:
+                    file_path.unlink()
+                except OSError:
+                    pass
+
+    # --------------------------------------------------------
+    # 3. Delete source from database
+    # --------------------------------------------------------
+    try:
+        db.delete(source)
+        db.commit()
+
+        return {
+            "success": True,
+            "message": "Knowledge source deleted successfully",
+            "id": str(source_id),
+        }
+
+    except Exception:
+        db.rollback()
+
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to delete knowledge source",
+        )

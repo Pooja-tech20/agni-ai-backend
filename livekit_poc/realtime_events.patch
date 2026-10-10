@@ -1,0 +1,105 @@
+--- a/livekit_poc/audio_subscriber.py
++++ b/livekit_poc/audio_subscriber.py
+@@ -71,6 +71,7 @@
+ import os
+ import time
+ import numpy as np
++from livekit_poc.events import EventEmitter
+ from dotenv import load_dotenv
+ from livekit import api, rtc
+ from scipy.signal import resample_poly
+@@ -368,6 +369,7 @@
+     audio_output: LiveKitAudioOutput,
+     ai_speaking: asyncio.Event,
+     interrupt_event: asyncio.Event,
++    events: EventEmitter | None = None,
+ ) -> None:
+     """
+ 
+@@ -722,6 +724,8 @@
+             print("Agni AI:")
+             print(response_text)
+             print()
++            if events is not None:
++                events.emit("assistant_text", text=response_text)
+ 
+             # -------------------------------------------------------
+             # Wait for LiveKit playback
+@@ -750,6 +754,8 @@
+             print(
+                 "AI voice response completed."
+             )
++            if events is not None:
++                events.emit("assistant_done")
+ 
+             # -------------------------------------------------------
+             # Latency report
+@@ -942,6 +948,7 @@
+     ai_speaking: asyncio.Event,
+     interrupt_event: asyncio.Event,
+     audio_output: LiveKitAudioOutput,
++    events: EventEmitter | None = None,
+ ) -> None:
+     """
+     Receive normalized STT events and dispatch completed user turns.
+@@ -984,6 +991,8 @@
+         )
+         # Tell the current LLM/TTS response to stop.
+         interrupt_event.set()
++        if events is not None:
++            events.emit("interrupted", reason=reason)
+         # Hard interruption:
+         #
+         # - reject remaining old-response chunks
+@@ -1015,6 +1024,8 @@
+             f"[UTTERANCE - {trigger}] "
+             f"{final_utterance}"
+         )
++        if events is not None:
++            events.emit("user_final", text=final_utterance)
+         await response_queue.put(
+             (
+                 final_utterance,
+@@ -1060,6 +1071,8 @@
+                 f"[PARTIAL] {transcript}"
+                 f"  ({latency:.2f} ms)"
+             )
++            if events is not None and transcript:
++                events.emit("user_partial", text=transcript)
+ 
+         # -------------------------------------------------------
+         # Final
+@@ -1395,6 +1408,7 @@
+     # ---------------------------------------------------------------
+ 
+     room = rtc.Room()
++    events = EventEmitter(room)
+     audio_output = LiveKitAudioOutput(
+         sample_rate=TTS_SAMPLE_RATE,
+         channels=TTS_CHANNELS,
+@@ -1551,6 +1565,7 @@
+                 ai_speaking,
+                 interrupt_event,
+                 audio_output,
++                events,
+             )
+         )
+         response_task = asyncio.create_task(
+@@ -1561,6 +1576,7 @@
+                 audio_output,
+                 ai_speaking,
+                 interrupt_event,
++                events,
+             )
+         )
+         audio_task = asyncio.create_task(
+@@ -1670,6 +1686,9 @@
+         # Close external streams
+         # -----------------------------------------------------------
+ 
++        events.emit("session_ended")
++        await events.flush()
++
+         if stt_adapter is not None:
+             await stt_adapter.close()
+         await audio_output.close()

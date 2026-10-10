@@ -1,0 +1,20 @@
+✅ requirements.txt
+README.md
+train_model.py
+predict.py
+app.py
+layout.html
+navbar.html
+footer.html
+index.html
+style.css
+script.js
+detector.html
+about.html
+services.html
+contact.html
+utils/ files (Phase 5)
+
+
+
+i want to make a website for fake news detector give me a proper code fort it and if i check random news on google so it can also detect this news fake or news and make responsive website in the website add nav bar in that home, detector, contact, about, services make responsive website using aiml model
