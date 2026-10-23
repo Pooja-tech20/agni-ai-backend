@@ -17,8 +17,16 @@ from dotenv import load_dotenv
 from openai import AsyncOpenAI
 
 from app.db.session import SessionLocal
+from app.models.agent import Agent
 from app.models.call import Call
 from app.models.call_message import CallMessage
+from app.services.openai_post_call_data_extractor import (
+    OpenAIPostCallDataExtractor,
+)
+from app.services.post_call_data_extractor import (
+    build_post_call_fields,
+    build_post_call_transcript,
+)
 
 load_dotenv(".env.local")
 
@@ -87,42 +95,143 @@ async def analyze_call(
                 return False
             if call.analyzed_at is not None and not force:
                 return True
+            agent = db.get(Agent, call.agent_id)
+
             rows = (
                 db.query(CallMessage.role, CallMessage.content)
                 .filter(CallMessage.call_id == call_id)
                 .order_by(CallMessage.created_at, CallMessage.id)
                 .all()
             )
+
+            post_call_config = (
+                agent.post_call_extraction
+                if agent is not None
+                else {}
+            )
+
         messages = [(role, content) for role, content in rows]
         if not any(role == "user" for role, _ in messages):
             return False  # nobody spoke: nothing to analyse
 
-        client = client or _make_client()
-        if client is None:
-            logger.info("Call analysis skipped: OPENAI_API_KEY is not set")
-            return False
+        summary = None
+        sentiment = None
+        summary_succeeded = False
 
-        response = await client.responses.create(
-            model=os.getenv("AGNI_ANALYSIS_MODEL") or os.getenv("OPENAI_MODEL", "gpt-5.6-luna"),
-            instructions=INSTRUCTIONS,
-            input=build_transcript_text(messages),
-            max_output_tokens=400,
-        )
-        parsed = parse_analysis(getattr(response, "output_text", None))
-        if parsed is None:
-            logger.warning("Call analysis: unusable model answer for call %s", call_id)
-            return False
+        analysis_client = client or _make_client()
 
-        summary, sentiment = parsed
+        if analysis_client is None:
+            logger.info(
+                "Call analysis skipped: OPENAI_API_KEY is not set"
+            )
+        else:
+            try:
+                response = await analysis_client.responses.create(
+                    model=(
+                        os.getenv("AGNI_ANALYSIS_MODEL")
+                        or os.getenv(
+                            "OPENAI_MODEL",
+                            "gpt-5.6-luna",
+                        )
+                    ),
+                    instructions=INSTRUCTIONS,
+                    input=build_transcript_text(messages),
+                    max_output_tokens=400,
+                )
+
+                parsed = parse_analysis(
+                    getattr(
+                        response,
+                        "output_text",
+                        None,
+                    )
+                )
+
+                if parsed is None:
+                    logger.warning(
+                        "Call analysis: unusable model answer for call %s",
+                        call_id,
+                    )
+                else:
+                    summary, sentiment = parsed
+                    summary_succeeded = True
+
+            except Exception:
+                logger.exception(
+                    "Summary/sentiment analysis failed for call %s",
+                    call_id,
+                )
+
+        post_call_result = None
+
+        if isinstance(post_call_config, dict):
+            try:
+                field_configs = post_call_config.get("fields")
+
+                fields = build_post_call_fields(
+                    field_configs
+                    if isinstance(field_configs, list)
+                    else []
+                )
+
+                if fields:
+                    transcript = build_post_call_transcript(
+                        [
+                            {
+                                "role": role,
+                                "content": content,
+                            }
+                            for role, content in messages
+                        ]
+                    )
+
+                    extractor = OpenAIPostCallDataExtractor()
+
+                    configured_model = post_call_config.get(
+                        "model"
+                    )
+
+                    model = (
+                        configured_model
+                        if isinstance(
+                            configured_model,
+                            str,
+                        )
+                        and configured_model.strip()
+                        else None
+                    )
+
+                    post_call_result = await extractor.extract(
+                        transcript=transcript,
+                        fields=fields,
+                        model=model,
+                    )
+
+            except Exception:
+                logger.exception(
+                    "Post Call Data Extraction failed for call %s",
+                    call_id,
+                )
+
         with session_factory() as db:
             call = db.get(Call, call_id)
+
             if call is None:
                 return False
-            call.summary = summary
-            call.sentiment = sentiment
-            call.analyzed_at = datetime.now(timezone.utc)
+
+            if summary_succeeded:
+                call.summary = summary
+                call.sentiment = sentiment
+                call.analyzed_at = datetime.now(timezone.utc)
+
+            if post_call_result is not None:
+                call.post_call_extraction_result = (
+                    post_call_result
+                )
+
             db.commit()
-        return True
+
+        return summary_succeeded
     except Exception:  # noqa: BLE001 - analysis is best-effort
         logger.exception("Call analysis failed for call %s", call_id)
         return False

@@ -2,7 +2,7 @@
 # from datetime import datetime
 
 # from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String
-# from sqlalchemy.dialects.postgresql import UUID
+# from sqlalchemy.dialects.postgresql import JSONB, UUID
 # from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 # from app.db.session import Base
@@ -45,7 +45,7 @@ import uuid
 from datetime import datetime
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.session import Base
@@ -95,6 +95,11 @@ class Call(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     model_name: Mapped[str | None] = mapped_column(String(100), nullable=True)  # model used for THIS call
     summary: Mapped[str | None] = mapped_column(Text, nullable=True)  # after-call analysis
     analyzed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    post_call_extraction_result: Mapped[dict | None] = mapped_column(
+        JSONB,
+        nullable=True,
+    )
 
     started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ended_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

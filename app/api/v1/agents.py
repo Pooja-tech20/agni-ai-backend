@@ -1016,7 +1016,7 @@ def _to_response(
         crm_sync=agent.crm_sync or {},
         speech_settings=agent.speech_settings or {},
         call_settings=agent.call_settings or {},
-        post_call_extraction=(
+        post_call_data_extraction=(
             agent.post_call_extraction or {}
         ),
         webhook_settings=(
@@ -1730,6 +1730,15 @@ def update_agent(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Client not found",
             )
+
+    # --------------------------------------------------------
+    # POST CALL DATA EXTRACTION
+    # --------------------------------------------------------
+
+    if "post_call_data_extraction" in changes:
+        changes["post_call_extraction"] = changes.pop(
+            "post_call_data_extraction"
+        )
 
     # --------------------------------------------------------
     # APPLY CHANGES

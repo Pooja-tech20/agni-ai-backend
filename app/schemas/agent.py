@@ -167,37 +167,6 @@
 
 
 # # ============================================================
-# # POST CALL
-# # ============================================================
-
-# class ExtractField(StrictSchema):
-#     name: str = Field(
-#         min_length=1,
-#         max_length=100,
-#     )
-
-#     description: str = Field(
-#         default="",
-#         max_length=500,
-#     )
-
-#     type: str = Field(
-#         default="string",
-#         max_length=50,
-#     )
-
-#     required: bool = False
-
-
-# class PostCall(StrictSchema):
-#     enabled: bool = False
-
-#     fields: list[ExtractField] = Field(
-#         default_factory=list,
-#     )
-
-
-# # ============================================================
 # # WEBHOOK
 # # ============================================================
 
@@ -444,10 +413,6 @@
 #     # POST CALL
 #     # --------------------------------------------------------
 
-#     post_call_data_extraction: PostCall = Field(
-#         default_factory=PostCall,
-#     )
-
 #     # --------------------------------------------------------
 #     # WEBHOOK
 #     # --------------------------------------------------------
@@ -598,10 +563,6 @@
 #                 self.call_settings.model_dump()
 #             ),
 
-#             "post_call_extraction": (
-#                 self.post_call_data_extraction.model_dump()
-#             ),
-
 #             "webhook_settings": (
 #                 self.webhook_settings.model_dump()
 #             ),
@@ -663,10 +624,6 @@
 #         default_factory=dict,
 #     )
 
-#     post_call_extraction: dict[str, Any] = Field(
-#         default_factory=dict,
-#     )
-
 #     webhook_settings: dict[str, Any] = Field(
 #         default_factory=dict,
 #     )
@@ -723,7 +680,7 @@
 
 #     call_settings: dict[str, Any] | None = None
 
-#     post_call_extraction: dict[str, Any] | None = None
+#     post_call_data_extraction: PostCall | None = None
 
 #     webhook_settings: dict[str, Any] | None = None
 
@@ -1028,7 +985,7 @@ class CallSettings(StrictSchema):
 # POST CALL DATA EXTRACTION
 # ============================================================
 
-class ExtractField(StrictSchema):
+class TextExtractField(StrictSchema):
     name: str = Field(
         min_length=1,
         max_length=100,
@@ -1039,24 +996,68 @@ class ExtractField(StrictSchema):
         max_length=500,
     )
 
-    type: str = Field(
-        default="string",
-        max_length=50,
-    )
+    type: Literal["text"]
 
-    required: bool = False
-
-    allowed_values: list[str] = Field(
+    format_examples: list[str] = Field(
         default_factory=list,
     )
 
 
-class PostCall(StrictSchema):
-    enabled: bool = False
+class SelectorExtractField(StrictSchema):
+    name: str = Field(
+        min_length=1,
+        max_length=100,
+    )
 
+    description: str = Field(
+        default="",
+        max_length=500,
+    )
+
+    type: Literal["selector"]
+
+    choices: list[str] = Field(
+        default_factory=list,
+    )
+
+
+class YesNoExtractField(StrictSchema):
+    name: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    description: str = Field(
+        default="",
+        max_length=500,
+    )
+
+    type: Literal["yes_no"]
+
+
+class NumberExtractField(StrictSchema):
+    name: str = Field(
+        min_length=1,
+        max_length=100,
+    )
+
+    description: str = Field(
+        default="",
+        max_length=500,
+    )
+
+    type: Literal["number"]
+
+
+class PostCall(StrictSchema):
     model: str | None = None
 
-    fields: list[ExtractField] = Field(
+    fields: list[
+        TextExtractField
+        | SelectorExtractField
+        | YesNoExtractField
+        | NumberExtractField
+    ] = Field(
         default_factory=list,
     )
 
@@ -1694,7 +1695,7 @@ class AgentConfig(BaseSchema):
         default_factory=dict,
     )
 
-    post_call_extraction: dict[str, Any] = Field(
+    post_call_data_extraction: dict[str, Any] = Field(
         default_factory=dict,
     )
 
@@ -1754,7 +1755,7 @@ class AgentUpdateRequest(BaseSchema):
 
     call_settings: dict[str, Any] | None = None
 
-    post_call_extraction: dict[str, Any] | None = None
+    post_call_data_extraction: PostCall | None = None
 
     webhook_settings: dict[str, Any] | None = None
 
