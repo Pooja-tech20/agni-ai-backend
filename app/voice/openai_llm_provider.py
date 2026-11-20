@@ -38,6 +38,8 @@ You are Agni AI, a helpful real-time voice assistant.
 Respond naturally and conversationally.
 
 Always reply in the same language style as the user's latest message.
+The session's initial language preference must never override the
+language used in the caller's latest utterance.
 
 Language behavior:
 - English input -> reply in English.
@@ -47,6 +49,9 @@ Language behavior:
 - If the user mixes languages, mirror that mix naturally.
 - Do not translate the user's message unless they ask for translation.
 - Keep common technical terms and proper names in English when that sounds natural.
+- Supported conversation languages are English, Hindi, Hinglish, and Marathi.
+- If the latest utterance is in another language, briefly explain in English
+  that these are the currently supported conversation languages.
 
 Keep responses concise because they will be converted to speech
 and played to a caller in real time.
@@ -55,6 +60,29 @@ Prefer short, clear spoken responses.
 
 Avoid unnecessary markdown, headings, bullet points, or special
 formatting unless the user explicitly asks for them.
+""".strip()
+
+
+# ---------------------------------------------------------------------------
+# Automatic language detection for multilingual sessions
+# ---------------------------------------------------------------------------
+
+AUTO_RESPONSE_LANGUAGE_INSTRUCTIONS = """
+Detect the language and speaking style from the latest caller utterance on every turn.
+The initial session language preference must never lock the response language.
+
+Language behavior:
+- English input -> respond in English.
+- Hindi input -> respond naturally in Hindi using Devanagari.
+- Marathi input -> respond naturally in Marathi using Devanagari.
+- Hinglish input -> respond naturally in Hinglish.
+- If the caller mixes languages, mirror that mix naturally.
+- If the caller changes language, follow the latest utterance.
+- Do not force the language used earlier in the conversation.
+- Do not translate unless the caller requests translation.
+- This deployment currently supports English, Hindi, Hinglish, and Marathi.
+- If the caller uses a different language, briefly explain in English that
+  these are the currently supported conversation languages.
 """.strip()
 
 
@@ -79,7 +107,8 @@ RESPONSE_LANGUAGE_ALIASES = {
     "mr": "marathi",
     "marathi": "marathi",
 
-    # Optional automatic/inference mode
+    # Automatic language detection / transcript-based inference
+    "auto": "multi",
     "multi": "multi",
 }
 
@@ -125,11 +154,13 @@ class OpenAILLMProvider(LLMProvider):
 
     response_language is optional.
 
-    If supplied by the integrated voice pipeline, it locks the
-    response style to the user's selected session language.
+    Explicit language values preserve the selected-language mode.
 
-    If omitted, language continues to be inferred from user_text.
-    This preserves standalone LLM POC behavior.
+    Use "auto" or "multi" so every response follows the caller's
+    latest utterance, regardless of the initial session preference.
+
+    When response_language is omitted, automatic transcript-based
+    language inference is used.
     """
 
     def __init__(
@@ -183,12 +214,12 @@ class OpenAILLMProvider(LLMProvider):
                     raise RuntimeError(
                         "Unsupported LLM response language: "
                         f"{response_language}. "
-                        "Use English, Hindi, Hinglish, Marathi, "
+                        "Use auto, English, Hindi, Hinglish, Marathi, "
                         "or multi."
                     )
 
-                # "multi" deliberately keeps the original
-                # transcript-based language inference behavior.
+                # "multi" deliberately preserves automatic
+                # transcript-based language inference.
                 if resolved_language != "multi":
                     self.response_language = (
                         resolved_language
@@ -205,6 +236,8 @@ class OpenAILLMProvider(LLMProvider):
 
         if self.response_language is not None:
 
+            # Explicit language selection retains the original
+            # selected-language behavior for standalone/manual modes.
             session_instruction = (
                 SESSION_LANGUAGE_INSTRUCTIONS[
                     self.response_language
@@ -219,8 +252,12 @@ class OpenAILLMProvider(LLMProvider):
 
         else:
 
+            # Integrated multilingual mode follows the latest caller
+            # utterance. Append this to both default and custom prompts.
             self.instructions = (
-                base_instructions
+                f"{base_instructions}\n\n"
+                "Automatic response language rule:\n"
+                f"{AUTO_RESPONSE_LANGUAGE_INSTRUCTIONS}"
             )
 
         # ------------------------------------------------------------------

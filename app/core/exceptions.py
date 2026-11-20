@@ -1,8 +1,8 @@
-# """
+﻿# """
 # Structured error handling.
 
-# Every error the API returns — whether raised deliberately (AppError
-# subclasses) or an unexpected bug — comes back in the same JSON shape:
+# Every error the API returns â€” whether raised deliberately (AppError
+# subclasses) or an unexpected bug â€” comes back in the same JSON shape:
 
 # {
 #   "error": {
@@ -65,12 +65,12 @@
 
 # # --- Request validation (beyond what Pydantic covers) --------------------
 # class InvalidAudioError(AppError):
-#     status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+#     status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
 #     code = "INVALID_AUDIO"
 
 
 # class PayloadTooLargeError(AppError):
-#     status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+#     status_code = status.HTTP_413_CONTENT_TOO_LARGE
 #     code = "PAYLOAD_TOO_LARGE"
 
 
@@ -111,11 +111,11 @@
 #     @app.exception_handler(RequestValidationError)
 #     async def validation_error_handler(request: Request, exc: RequestValidationError):
 #         # Drop the raw "ctx" (can hold non-serializable exception objects from
-#         # custom validators) — the "msg" field already carries that context as text.
+#         # custom validators) â€” the "msg" field already carries that context as text.
 #         fields = [{k: v for k, v in err.items() if k != "ctx"} for err in exc.errors()]
 #         logger.warning("Validation error on %s: %s", request.url.path, fields)
 #         return JSONResponse(
-#             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+#             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
 #             content=_error_body(
 #                 "VALIDATION_ERROR",
 #                 "Request failed validation.",
@@ -137,8 +137,8 @@
 """
 Structured error handling.
 
-Every error the API returns — whether raised deliberately (AppError
-subclasses) or an unexpected bug — comes back in the same JSON shape:
+Every error the API returns â€” whether raised deliberately (AppError
+subclasses) or an unexpected bug â€” comes back in the same JSON shape:
 
 {
   "error": {
@@ -202,12 +202,12 @@ class AgentInactiveError(AppError):
 
 # --- Request validation (beyond what Pydantic covers) --------------------
 class InvalidAudioError(AppError):
-    status_code = status.HTTP_422_UNPROCESSABLE_ENTITY
+    status_code = status.HTTP_422_UNPROCESSABLE_CONTENT
     code = "INVALID_AUDIO"
 
 
 class PayloadTooLargeError(AppError):
-    status_code = status.HTTP_413_REQUEST_ENTITY_TOO_LARGE
+    status_code = status.HTTP_413_CONTENT_TOO_LARGE
     code = "PAYLOAD_TOO_LARGE"
 
 
@@ -266,11 +266,11 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(RequestValidationError)
     async def validation_error_handler(request: Request, exc: RequestValidationError):
         # Drop the raw "ctx" (can hold non-serializable exception objects from
-        # custom validators) — the "msg" field already carries that context as text.
+        # custom validators) â€” the "msg" field already carries that context as text.
         fields = [{k: v for k, v in err.items() if k != "ctx"} for err in exc.errors()]
         logger.warning("Validation error on %s: %s", request.url.path, fields)
         return JSONResponse(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             content=_error_body(
                 "VALIDATION_ERROR",
                 "Request failed validation.",

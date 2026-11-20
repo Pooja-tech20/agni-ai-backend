@@ -11,26 +11,19 @@ from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 class KnowledgeBase(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "knowledge_bases"
 
-    name: Mapped[str] = mapped_column(
-        String(255),
-        nullable=False,
-    )
-
-    description: Mapped[str | None] = mapped_column(
-        Text,
+    client_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True),
+        ForeignKey("clients.id", ondelete="SET NULL"),
         nullable=True,
+        index=True,
     )
-
+    name: Mapped[str] = mapped_column(String(255), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[str] = mapped_column(
-        String(50),
-        default="active",
-        server_default="active",
-        nullable=False,
+        String(50), default="active", server_default="active", nullable=False
     )
-
     sources: Mapped[list["KnowledgeSource"]] = relationship(
-        back_populates="knowledge_base",
-        cascade="all, delete-orphan",
+        back_populates="knowledge_base", cascade="all, delete-orphan"
     )
 
     def __repr__(self) -> str:
@@ -46,47 +39,16 @@ class KnowledgeSource(Base, UUIDPrimaryKeyMixin, TimestampMixin):
         nullable=False,
         index=True,
     )
-
-    title: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
-    )
-
-    source_type: Mapped[str] = mapped_column(
-        String(50),
-        nullable=False,
-    )
-
-    content: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-    )
-
-    url: Mapped[str | None] = mapped_column(
-        Text,
-        nullable=True,
-    )
-
-    file_name: Mapped[str | None] = mapped_column(
-        String(255),
-        nullable=True,
-    )
-
-    file_size: Mapped[int | None] = mapped_column(
-        Integer,
-        nullable=True,
-    )
-
+    title: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    source_type: Mapped[str] = mapped_column(String(50), nullable=False)
+    content: Mapped[str | None] = mapped_column(Text, nullable=True)
+    url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    file_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    file_size: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(
-        String(50),
-        default="active",
-        server_default="active",
-        nullable=False,
+        String(50), default="active", server_default="active", nullable=False
     )
-
-    knowledge_base: Mapped["KnowledgeBase"] = relationship(
-        back_populates="sources",
-    )
+    knowledge_base: Mapped["KnowledgeBase"] = relationship(back_populates="sources")
 
     def __repr__(self) -> str:
         return f"<KnowledgeSource {self.title or self.file_name or self.id}>"

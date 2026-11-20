@@ -11,3 +11,21 @@ env/
 *.egg-info/
 build/
 dist/
+
+# Local environment and secrets
+.env*
+!.env.example
+
+# Temporary files and backups
+*.wav
+latency_log.csv
+backup_before_*/
+
+# Uploaded user data
+uploads/knowledge_base/
+
+# Local inspection notes
+README_FIX.txt
+pooja_feature_sources.txt
+pooja_project_structure.txt
+requirements_before_cleanup.txt

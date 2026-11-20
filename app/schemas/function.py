@@ -175,7 +175,13 @@ import uuid
 from datetime import datetime
 from typing import Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,
+)
 
 from app.core.url_safety import check_public_http_url
 from app.schemas.base import BaseSchema
@@ -375,7 +381,6 @@ class PressDigitConfig(_Config):
 
 class WebhookConfig(_Config):
 
-    # Agent Builder
     function_type: Literal[
         "custom",
         "client",
@@ -398,7 +403,6 @@ class WebhookConfig(_Config):
         default_factory=dict,
     )
 
-    # JSON Schema describing parameters
     parameters: dict[str, Any] = Field(
         default_factory=lambda: {
             "type": "object",
@@ -411,7 +415,6 @@ class WebhookConfig(_Config):
         max_length=500,
     )
 
-    # Agent Builder / UI may use these names
     description: str | None = Field(
         default=None,
         max_length=1000,
@@ -423,87 +426,65 @@ class WebhookConfig(_Config):
         le=30,
     )
 
-    # Existing webhook API compatibility
     retries: int = Field(
         default=0,
         ge=0,
     )
 
+    @model_validator(mode="after")
+    def validate_custom_webhook(self):
+        if self.function_type == "custom":
+            if not self.url or not self.url.strip():
+                raise ValueError(
+                    "URL is required for custom webhook functions"
+                )
+        return self
+
     @field_validator("url")
     @classmethod
-    def _url(
-        cls,
-        v: str | None,
-    ) -> str | None:
-
-        if v is None or v == "":
-            return v
-
-        return check_public_http_url(v)
+    def _url(cls, value: str | None) -> str | None:
+        if value is None or not value.strip():
+            return value
+        return check_public_http_url(value)
 
     @field_validator("headers")
     @classmethod
-    def _headers(
-        cls,
-        v: dict[str, str],
-    ) -> dict[str, str]:
+    def _headers(cls, value: dict[str, str]) -> dict[str, str]:
+        if len(value) > 20:
+            raise ValueError("at most 20 headers")
 
-        if len(v) > 20:
-            raise ValueError(
-                "at most 20 headers"
-            )
-
-        for name, value in v.items():
-
-            if not re.fullmatch(
-                r"[A-Za-z0-9-]{1,64}",
-                name,
-            ):
-                raise ValueError(
-                    f"invalid header name '{name}'"
-                )
+        for name, header_value in value.items():
+            if not re.fullmatch(r"[A-Za-z0-9-]{1,64}", name):
+                raise ValueError(f"invalid header name '{name}'")
 
             if (
-                len(value) > 2000
-                or "\r" in value
-                or "\n" in value
+                len(header_value) > 2000
+                or "\r" in header_value
+                or "\n" in header_value
             ):
                 raise ValueError(
                     f"invalid value for header '{name}'"
                 )
 
-        return v
+        return value
 
     @field_validator("parameters")
     @classmethod
-    def _parameters(
-        cls,
-        v: dict[str, Any],
-    ) -> dict[str, Any]:
-
-        if v.get("type") != "object":
-
+    def _parameters(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if value.get("type") != "object":
             raise ValueError(
-                "parameters must be a JSON Schema "
-                "with type 'object'"
+                "parameters must be a JSON Schema with type 'object'"
             )
 
-        if not isinstance(
-            v.get("properties", {}),
-            dict,
-        ):
-
+        if not isinstance(value.get("properties", {}), dict):
             raise ValueError(
                 "parameters.properties must be an object"
             )
 
-        if len(json.dumps(v)) > 20_000:
+        if len(json.dumps(value)) > 20_000:
+            raise ValueError("parameters schema is too large")
 
-            raise ValueError(
-                "parameters schema is too large"
-            )
-
-        return v
+        return value
 
 
 # ============================================================

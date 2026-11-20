@@ -23,8 +23,8 @@ Production routing:
         -> Nova-3
         -> language="mr"
 
-    multi
-        -> Nova-3 legacy/debug mode
+    auto / multi
+        -> Nova-3 multilingual automatic detection with code-switching
 
 Expected primary audio format:
     linear16 / PCM16
@@ -315,7 +315,8 @@ LANGUAGE_MODE_ALIASES = {
     "mr": "marathi",
     "marathi": "marathi",
 
-    # Legacy/debug
+    # Automatic multilingual detection; multi remains a backward-compatible alias.
+    "auto": "multi",
     "multi": "multi",
 }
 
@@ -351,8 +352,8 @@ class DeepgramSTTService:
         marathi
             -> Nova-3 Marathi
 
-        multi
-            -> Nova-3 legacy multilingual mode
+        auto / multi
+            -> Nova-3 multilingual auto-detection with code-switching
     """
 
     def __init__(
@@ -451,7 +452,8 @@ class DeepgramSTTService:
 
         else:
 
-            # Preserve the existing debug/manual mode.
+            # Nova-3 multilingual auto-detection supports language
+            # switching within one conversation.
             self.backend = "nova"
             self.model = "nova-3"
             self.language = "multi"
@@ -1283,6 +1285,8 @@ class DeepgramSTTService:
     # Nova-3
     # =======================================================================
 
+
+
     async def _run_nova(
         self,
         audio_gen: AsyncIterator[bytes],
@@ -1948,7 +1952,7 @@ if __name__ == "__main__":
         default=None,
         help=(
             "english, hindi, hinglish, "
-            "marathi, or multi"
+            "marathi, auto, or multi"
         ),
     )
 

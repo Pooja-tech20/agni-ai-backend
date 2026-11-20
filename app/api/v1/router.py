@@ -1,4 +1,4 @@
-# """
+﻿# """
 # v1 API router - aggregates every v1 sub-router.
 # """
 
@@ -67,6 +67,7 @@ from app.api.dependencies import get_current_user
 from app.api.v1.agent_health import create_health_router as create_voice_health_router
 from app.api.v1.agents import router as agents_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.admin import router as admin_router
 from app.api.v1.calls import router as calls_router
 from app.api.v1.catalog import router as catalog_router
 from app.api.v1.chat import create_chat_router
@@ -88,6 +89,7 @@ api_router = APIRouter()
 
 # --- Core platform (/health and /health/db live in main.py at the root) ---
 api_router.include_router(auth_router)
+api_router.include_router(admin_router)
 api_router.include_router(users_router)
 api_router.include_router(dashboard_router)
 api_router.include_router(calls_router)           # call history + transcripts

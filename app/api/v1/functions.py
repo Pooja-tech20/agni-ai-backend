@@ -1,4 +1,4 @@
-"""
+﻿"""
 Functions (tools) an agent's LLM can call during a conversation.
 
 GET    /functions/types     what kinds exist + the config schema of each
@@ -87,7 +87,7 @@ def _checked_config(type_: str, config: dict[str, Any]) -> dict[str, Any]:
         return validate_config(type_, config)
     except ValidationError as exc:
         raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=[
                 {"loc": ["config", *map(str, e["loc"])], "msg": e["msg"]}
                 for e in exc.errors(include_url=False, include_context=False)
@@ -108,7 +108,7 @@ def _restore_masked_headers(new_config: dict[str, Any], old_config: dict[str, An
                 headers[name] = old_headers[name]
             else:
                 raise HTTPException(
-                    status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    status.HTTP_422_UNPROCESSABLE_CONTENT,
                     f"Header '{name}' has no stored value. Send the real value.",
                 )
 
@@ -239,7 +239,7 @@ def update_function(
 
     for field in ("name", "description", "config", "enabled"):
         if field in changes and changes[field] is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"{field} cannot be null")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"{field} cannot be null")
 
     if "name" in changes and changes["name"].lower() != fn.name.lower():
         if _name_taken(db, fn.client_id, changes["name"], exclude_id=fn.id):

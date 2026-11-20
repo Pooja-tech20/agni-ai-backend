@@ -25,10 +25,17 @@ def _jsonb_as_json(type_, compiler, **kw):
     return "JSON"
 
 
-for col in Agent.__table__.columns:  # "'[]'::jsonb" defaults are Postgres-only
-    if col.server_default is not None and "jsonb" in str(col.server_default.arg):
-        col.server_default = None
-for col in AgentFunction.__table__.columns:
+for table in Base.metadata.tables.values():
+    for col in table.columns:
+        if (
+            col.server_default is not None
+            and "::jsonb" in str(col.server_default.arg).lower()
+        ):
+            col.server_default = None
+
+from app.models.contact import Contact
+
+for col in Contact.__table__.columns:
     if col.server_default is not None and "jsonb" in str(col.server_default.arg):
         col.server_default = None
 
@@ -206,7 +213,7 @@ def test_update_keeps_masked_secret_and_blocks_type_change(env):
     env["db"].refresh(stored)
     assert stored.config["headers"]["Authorization"] == "Bearer NEWSECRET9999"
     # masked value for a header that was never stored
-    cfg["headers"] = {"X-New": "••••1234"}
+    cfg["headers"] = {"X-New": "ΓÇóΓÇóΓÇóΓÇó1234"}
     assert c.patch(f"/api/v1/functions/{fid}", headers=env["A"], json={"config": cfg}).status_code == 422
     # forbidden / invalid changes
     assert c.patch(f"/api/v1/functions/{fid}", headers=env["A"], json={"type": "end_call"}).status_code == 422

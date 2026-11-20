@@ -226,10 +226,20 @@ class LiveKitAudioOutput:
                     capture_task
                 )
 
+                if self._hard_interrupted:
+                    self.audio_source.clear_queue()
+
             else:
 
+                def finish_capture(task: asyncio.Task[None]) -> None:
+                    self._capture_tasks.discard(task)
+
+                    # A shielded capture can finish after cancellation.
+                    if self._hard_interrupted:
+                        self.audio_source.clear_queue()
+
                 capture_task.add_done_callback(
-                    self._capture_tasks.discard
+                    finish_capture
                 )
 
         # -----------------------------------------------------------

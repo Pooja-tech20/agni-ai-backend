@@ -1,4 +1,4 @@
-# """Call history: GET /calls (list) and GET /calls/{id} (details + transcript)."""
+﻿# """Call history: GET /calls (list) and GET /calls/{id} (details + transcript)."""
 # import uuid
 # from datetime import datetime
 
@@ -187,6 +187,7 @@ class MessageOut(BaseSchema):
 
 class CallDetail(CallSummary):
     messages: list[MessageOut]
+    post_call_extraction_result: dict | None = None
 
 
 class CallStats(BaseSchema):
@@ -268,9 +269,9 @@ def _period_range(
         return None, None
     if period == "custom":
         if date_from is None and date_to is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "custom period needs date_from and/or date_to")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "custom period needs date_from and/or date_to")
         if date_from and date_to and date_from > date_to:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "date_from must be before date_to")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "date_from must be before date_to")
         return date_from, date_to
 
     now = datetime.now(timezone.utc)
@@ -315,7 +316,7 @@ class CallFilters:
         self.min_duration = min_duration
         self.max_duration = max_duration
         if min_duration is not None and max_duration is not None and min_duration > max_duration:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "min_duration must be <= max_duration")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "min_duration must be <= max_duration")
 
 
 def _filtered(db: Session, user: User, f: CallFilters, *, with_status: bool = True) -> OrmQuery:
@@ -489,6 +490,7 @@ def get_call(
     return CallDetail(
         **_summary(call, agent_name, agent_model).model_dump(),
         messages=[MessageOut.model_validate(m) for m in messages],
+        post_call_extraction_result=call.post_call_extraction_result,
     )
 
 
@@ -532,6 +534,7 @@ def download_transcript(
                 "agent": agent_name,
                 "started_at": call.started_at.isoformat() if call.started_at else None,
                 "summary": call.summary,
+                "post_call_extraction_result": call.post_call_extraction_result,
                 "messages": [
                     {"role": who.get(m.role, m.role), "content": m.content, "at": m.created_at.isoformat()}
                     for m in messages
@@ -568,7 +571,7 @@ async def analyze(
         db.query(CallMessage.id).filter(CallMessage.call_id == call.id, CallMessage.role == "user").first()
     )
     if has_caller_speech is None:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, "This call has no transcript to analyse")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, "This call has no transcript to analyse")
 
     if not await analyze_call(call.id, force=True):
         raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "Analysis is unavailable right now. Try again later.")

@@ -41,6 +41,8 @@ import urllib.request
 from dotenv import load_dotenv
 from livekit import rtc
 
+from livekit_poc.realtime_media_devices import RealtimeMediaDevices
+
 
 # ---------------------------------------------------------------------------
 # Environment configuration
@@ -96,19 +98,25 @@ AGENT_API_URL = os.getenv(
 
 
 def create_agent_session() -> tuple[str, str]:
-    payload = json.dumps(
-        {
-            "language": "english",
-            "system_prompt": None,
-            "welcome_message": "Hello! Welcome to Agni AI. How can I help you today?",
-        }
-    ).encode("utf-8")
+    agent_id = os.getenv("AGNI_TEST_AGENT_ID", "").strip()
+    access_token = os.getenv("AGNI_TEST_ACCESS_TOKEN", "").strip()
+
+    if not agent_id or not access_token:
+        raise RuntimeError(
+            "Set AGNI_TEST_AGENT_ID and AGNI_TEST_ACCESS_TOKEN "
+            "before running the publisher."
+        )
+
+    payload = json.dumps({
+        "agent_id": agent_id
+    }).encode("utf-8")
 
     request = urllib.request.Request(
         f"{AGENT_API_URL}/api/v1/sessions",
         data=payload,
         headers={
             "Content-Type": "application/json",
+            "Authorization": f"Bearer {access_token}",
         },
         method="POST",
     )
@@ -311,7 +319,8 @@ async def main() -> None:
     # Noise suppression and automatic gain control
     # remain disabled for the current local test setup.
 
-    media_devices = rtc.MediaDevices()
+    # LiveKit APM processes 10ms frames; avoid the SDK default 100ms I/O batches.
+    media_devices = RealtimeMediaDevices(blocksize=480)
 
     input_device = select_laptop_microphone(
         media_devices
@@ -319,6 +328,20 @@ async def main() -> None:
 
     output_device = select_laptop_speaker(
         media_devices
+    )
+
+    # -----------------------------------------------------------------------
+    # Create agent session before opening microphone
+    # -----------------------------------------------------------------------
+
+    print("Creating Agni AI session...")
+
+    session_room_name, session_token = (
+        create_agent_session()
+    )
+
+    print(
+        f"Session created: {session_room_name}"
     )
 
     # -----------------------------------------------------------------------
@@ -337,29 +360,65 @@ async def main() -> None:
     # Laptop speaker output
     # -----------------------------------------------------------------------
 
-    output_player = media_devices.open_output(
-        output_device=output_device,
-    )
-
+    # A buffer clear alone is ineffective: the SDK AudioMixer can refill the
+    # OutputPlayer after the clear. Closing the player closes its mixer and
+    # AudioStream as well, then the next AI turn can attach a fresh stream.
+    output_player = None
+    voice_track: rtc.Track | None = None
+    playback_lock = asyncio.Lock()
+    control_tasks: set[asyncio.Task[None]] = set()
     playback_task = None
+
+    async def set_voice_playback(enabled: bool) -> None:
+        nonlocal output_player
+        async with playback_lock:
+            if not enabled:
+                if output_player is not None:
+                    player = output_player
+                    output_player = None
+                    await player.aclose()
+                    print("[BARGE-IN] Laptop speaker playback stopped.")
+                return
+
+            if output_player is not None or voice_track is None:
+                return
+
+            player = media_devices.open_output(output_device=output_device)
+            try:
+                await player.add_track(voice_track)
+                await player.start()
+            except BaseException:
+                await player.aclose()
+                raise
+            output_player = player
+            print("\nAgni voice playback started through laptop speaker")
+
+    @room.on("data_received")
+    def on_data_received(packet: rtc.DataPacket) -> None:
+        if packet.topic != "agni/audio-control":
+            return
+        if packet.data not in (b"stop", b"resume"):
+            return
+        task = asyncio.create_task(set_voice_playback(packet.data == b"resume"))
+        control_tasks.add(task)
+
+        def finish_control(completed: asyncio.Task[None]) -> None:
+            control_tasks.discard(completed)
+            if not completed.cancelled():
+                error = completed.exception()
+                if error is not None:
+                    print(f"Audio playback control failed: {error}")
+
+        task.add_done_callback(finish_control)
 
     # -----------------------------------------------------------------------
     # Play Agni voice
     # -----------------------------------------------------------------------
 
-    async def play_voice_output(
-        track: rtc.Track,
-    ) -> None:
-        await output_player.add_track(
-            track
-        )
-
-        await output_player.start()
-
-        print(
-            "\nAgni voice playback started "
-            "through laptop speaker"
-        )
+    async def play_voice_output(track: rtc.Track) -> None:
+        nonlocal voice_track
+        voice_track = track
+        await set_voice_playback(True)
 
     # -----------------------------------------------------------------------
     # LiveKit remote track subscription
@@ -406,18 +465,6 @@ async def main() -> None:
     # -----------------------------------------------------------------------
     # Connect to LiveKit
     # -----------------------------------------------------------------------
-
-    print(
-        "Creating Agni AI session..."
-    )
-
-    session_room_name, session_token = (
-        create_agent_session()
-    )
-
-    print(
-        f"Session created: {session_room_name}"
-    )
 
     print(
         "Connecting to LiveKit..."
@@ -513,10 +560,14 @@ async def main() -> None:
             )
 
         # -------------------------------------------------------------------
-        # Close output
+        # Stop receiver and release speaker/mixer, including control tasks
         # -------------------------------------------------------------------
 
-        await output_player.aclose()
+        for task in tuple(control_tasks):
+            task.cancel()
+        if control_tasks:
+            await asyncio.gather(*control_tasks, return_exceptions=True)
+        await set_voice_playback(False)
 
         # -------------------------------------------------------------------
         # Close microphone capture

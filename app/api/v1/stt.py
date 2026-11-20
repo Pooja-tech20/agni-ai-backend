@@ -30,10 +30,10 @@ User-facing language routing:
         -> Nova-3
         -> language="mr"
 
-Optional manual/debug mode:
+Automatic multilingual mode:
 
-    multi
-        -> Nova-3 legacy/debug mode
+    auto / multi
+        -> Nova-3 multilingual auto-detection with code-switching
 
 Examples:
 
@@ -56,6 +56,8 @@ Language aliases are also accepted:
     /api/v1/stt/stream?language=mr
 
     /api/v1/stt/stream?language=multi
+
+    /api/v1/stt/stream?language=auto
 
 If no language query parameter is supplied,
 DeepgramSTTService uses DEEPGRAM_STT_LANGUAGE
@@ -167,6 +169,8 @@ async def stt_stream(
         ?language=mr
 
         ?language=multi
+
+        ?language=auto  (automatic multilingual detection)
     """
 
     # -----------------------------------------------------------------------
@@ -196,7 +200,8 @@ async def stt_stream(
         "mr": "marathi",
         "marathi": "marathi",
 
-        # Optional legacy/debug mode
+        # Automatic multilingual detection; multi remains a backward-compatible alias.
+        "auto": "multi",
         "multi": "multi",
     }
 
