@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.health import router as health_router
 from app.api.v1.router import api_router, session_manager
-from app.core.config import Settings, settings
+from app.core.config import settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import get_logger, setup_logging
 from app.core.middleware import RequestIDMiddleware
@@ -24,18 +24,30 @@ async def lifespan(app: FastAPI):
         settings.APP_NAME,
         settings.APP_ENV,
     )
+    # Refuse to start production with default secrets / missing keys.
+    settings.assert_safe_for_environment()
+
+    workers = []
+    if settings.RUN_BACKGROUND_WORKERS:
+        from app.workers.runner import start_workers
+
+        workers = start_workers()
 
     try:
         yield
     finally:
+        if workers:
+            from app.workers.runner import stop_workers
+
+            await stop_workers(workers)
         # Stop any running voice-agent subprocesses.
         await session_manager.shutdown()
 
 
 app = FastAPI(
     title=settings.APP_NAME,
-    description="Agni AI backend — FastAPI + PostgreSQL foundation",
-    version="0.1.0",
+    description="Agni AI backend — multi-tenant voice AI platform (FastAPI + PostgreSQL)",
+    version="0.2.0",
     lifespan=lifespan,
     swagger_ui_parameters={
         "persistAuthorization": True,
@@ -45,7 +57,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=Settings().cors_origins_list,
+    allow_origins=settings.cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

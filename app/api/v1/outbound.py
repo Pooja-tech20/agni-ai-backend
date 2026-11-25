@@ -15,6 +15,7 @@ from app.models.phone_number import PhoneNumber
 from app.models.roles import UserRole
 from app.models.user import User
 from app.schemas.outbound import OutboundCallRequest, OutboundCallResponse
+from app.services.billing import ensure_can_call, ensure_concurrency_room
 from app.services.telephony import get_telephony_provider
 
 router = APIRouter(prefix="/outbound", tags=["Outbound"])
@@ -71,6 +72,10 @@ def trigger_outbound_call(
     pn = db.get(PhoneNumber, phone_number_id)
     if not pn or pn.client_id != client_id or not pn.is_active:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Active phone number not found")
+
+    # --- Org must be active, have credits and a free concurrency slot ---
+    org = ensure_can_call(db, client_id)
+    ensure_concurrency_room(db, org)
 
     # --- Create the Call row first so the provider has our internal ID ---
     call = Call(

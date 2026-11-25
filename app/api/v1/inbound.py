@@ -6,11 +6,14 @@ Route management is under /inbound/routes. The provider POSTs calls to
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from app.api.dependencies import get_current_user, require_role
+from app.core.webhook_auth import verify_provider_secret
 from app.db.session import get_db
+from app.services.billing import BillingError, ensure_can_call, ensure_concurrency_room
+from app.services.webhook_service import enqueue_event
 from app.models.agent import Agent
 from app.models.call import Call
 from app.models.inbound_route import InboundRoute
@@ -138,7 +141,13 @@ def delete_inbound_route(
 # ============================================================
 
 @router.post("/webhook", response_model=InboundWebhookResponse)
-def inbound_webhook(payload: InboundWebhookRequest, db: Session = Depends(get_db)):
+def inbound_webhook(
+    payload: InboundWebhookRequest,
+    token: str | None = Query(None),
+    x_webhook_secret: str | None = Header(None, alias="X-Webhook-Secret"),
+    db: Session = Depends(get_db),
+):
+    verify_provider_secret(x_webhook_secret, token)
     to_number = payload.To
     route = None
     if to_number:
@@ -161,6 +170,15 @@ def inbound_webhook(payload: InboundWebhookRequest, db: Session = Depends(get_db
     call_id_str: str | None = None
 
     if route:
+        # Refuse the call (and bill nothing) if the org is suspended / out of credits / at its limit.
+        try:
+            org = ensure_can_call(db, route.client_id)
+            ensure_concurrency_room(db, org)
+        except BillingError as exc:
+            return InboundWebhookResponse(
+                call_id=None, status="rejected", message=exc.message,
+                agent_id=None, received_at=datetime.now(timezone.utc),
+            )
         call = Call(
             client_id=route.client_id,
             agent_id=route.agent_id,
@@ -173,6 +191,11 @@ def inbound_webhook(payload: InboundWebhookRequest, db: Session = Depends(get_db
             started_at=datetime.now(timezone.utc),
         )
         db.add(call)
+        db.flush()
+        enqueue_event(db, call.client_id, "call.started", {
+            "call_id": str(call.id), "direction": "inbound",
+            "from": payload.From, "to": payload.To, "agent_id": str(route.agent_id),
+        })
         db.commit()
         db.refresh(call)
         call_id_str = str(call.id)

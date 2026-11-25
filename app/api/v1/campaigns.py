@@ -10,6 +10,8 @@ from app.api.dependencies import get_current_user, require_role
 from app.db.session import get_db
 from app.models.agent import Agent
 from app.models.campaign import Campaign
+from app.models.campaign_contact import CampaignContact
+from app.services.billing import BillingError, ensure_can_call
 from app.models.phone_number import PhoneNumber
 from app.models.roles import UserRole
 from app.models.user import User
@@ -181,6 +183,19 @@ def start_campaign(
     c = _get_or_404(db, campaign_id, current_user)
     if c.status == CampaignStatus.ACTIVE.value:
         raise HTTPException(status.HTTP_409_CONFLICT, "Campaign is already running")
+    if c.status in (CampaignStatus.COMPLETED.value, CampaignStatus.FAILED.value):
+        raise HTTPException(status.HTTP_409_CONFLICT, f"A {c.status} campaign cannot be started again")
+    if c.phone_number_id is None:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Choose a caller ID (phone number) first")
+    has_contacts = db.query(CampaignContact).filter(
+        CampaignContact.campaign_id == c.id, CampaignContact.status == "pending"
+    ).first()
+    if not has_contacts:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Add contacts to the campaign first")
+    try:
+        ensure_can_call(db, c.client_id)
+    except BillingError as exc:
+        raise HTTPException(exc.status_code, exc.message)
     c.status = CampaignStatus.ACTIVE.value
     db.commit()
     db.refresh(c)

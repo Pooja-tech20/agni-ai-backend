@@ -23,7 +23,10 @@ from app.services.agent_session_manager import (
     AgentSessionManager,
     SUPPORTED_AGENT_LANGUAGES,
 )
-from app.services.call_analysis import analyze_call
+from app.services.call_analysis import analyze_call  # noqa: F401  (kept for /calls/{id}/analyze users)
+from app.services.call_lifecycle import finalize_call
+from app.services.post_call import run_post_call_pipeline
+from app.services.billing import ensure_can_call, ensure_concurrency_room
 
 logger = logging.getLogger(__name__)
 
@@ -150,31 +153,9 @@ def _finish_call(
     call_status: str,
     end_reason: str | None = None,
 ) -> None:
-    """Persist call completion once, using a dedicated database session."""
+    """Close the call once: duration, credit billing, campaign progress."""
     with SessionLocal() as db:
-        call = db.get(Call, call_id)
-
-        if call is None or call.status != "in_progress":
-            return
-
-        now = datetime.now(timezone.utc)
-
-        call.status = call_status
-        call.ended_at = now
-        call.end_reason = end_reason
-
-        if call.started_at is not None:
-            started_at = call.started_at
-
-            if started_at.tzinfo is None:
-                started_at = started_at.replace(tzinfo=timezone.utc)
-
-            call.duration_seconds = max(
-                0,
-                int((now - started_at).total_seconds()),
-            )
-
-        db.commit()
+        finalize_call(db, call_id, call_status, end_reason)
 
 
 def create_sessions_router(session_manager: AgentSessionManager) -> APIRouter:
@@ -226,14 +207,8 @@ def create_sessions_router(session_manager: AgentSessionManager) -> APIRouter:
 
             # call_analysis owns summary, sentiment and post-call extraction.
             # It reads the persisted CallMessage transcript.
-            try:
-                await analyze_call(call_id)
-
-            except Exception:
-                logger.exception(
-                    "After-call analysis failed for call %s",
-                    call_id,
-                )
+            # Analysis, then the signed `call.completed` webhook.
+            await run_post_call_pipeline(call_id)
 
         except Exception:
             logger.exception(
@@ -299,6 +274,9 @@ def create_sessions_router(session_manager: AgentSessionManager) -> APIRouter:
                 status.HTTP_409_CONFLICT,
                 "Agent is inactive",
             )
+
+        org = ensure_can_call(db, agent.client_id)
+        ensure_concurrency_room(db, org)
 
         call = Call(
             client_id=agent.client_id,

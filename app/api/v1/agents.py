@@ -37,6 +37,7 @@ from app.schemas.function import (
 )
 
 from app.api.dependencies import require_role
+from app.api.scope import enforce_agent_limit
 
 
 router = APIRouter(
@@ -574,6 +575,8 @@ def create_agent(
             for function_row
             in function_rows
         ]
+
+        enforce_agent_limit(db, client_id)
 
         agent = Agent(
             name=name,

@@ -75,11 +75,73 @@ class Settings(BaseSettings):
     EXOTEL_SUBDOMAIN: str = "api.exotel.com"
     EXOTEL_WEBHOOK_BASE_URL: str | None = None
 
+    # Shared secret the provider must send to /inbound/webhook and
+    # /telephony/exotel/status (header X-Webhook-Secret or ?token=).
+    # REQUIRED outside development; empty means "not enforced" in dev only.
+    INBOUND_WEBHOOK_SECRET: str | None = None
+    # Exotel Voice flow / applet URL that bridges the answered call into
+    # LiveKit SIP. Configured in the Exotel dashboard - see docs.
+    EXOTEL_FLOW_URL: str | None = None
+
+    # --- Security ---
+    # Fernet key for encrypting third-party credentials stored in the DB
+    # (Cal.com / GoHighLevel keys). Generate: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    SECRETS_ENCRYPTION_KEY: str | None = None
+    # Shared secret for server-to-server calls made by the voice agent
+    # (appointment booking etc.). Sent as X-Agent-Secret.
+    AGENT_INTERNAL_SECRET: str | None = None
+    # When set, /stt/stream requires ?token=<value>. The agent subprocess
+    # reads the same env var and appends it automatically.
+    STT_INTERNAL_TOKEN: str | None = None
+    # Requests per minute per IP for the public /chat widget endpoint.
+    CHAT_RATE_LIMIT_PER_MINUTE: int = 20
+
+    # --- Billing ---
+    # Credits charged per minute of call time (override per org on Client).
+    CREDITS_PER_MINUTE: float = 1.0
+    # Starting credits for a newly registered organization.
+    DEFAULT_SIGNUP_CREDITS: float = 10.0
+    # Block calls when an organization's balance is at or below this value.
+    MIN_CREDITS_TO_CALL: float = 0.0
+
+    # --- Background workers (dialer + webhook delivery) ---
+    # Run them inside the API process. For production prefer a separate
+    # process:  python -m app.workers.run   (and set this to False on the API).
+    RUN_BACKGROUND_WORKERS: bool = False
+    DIALER_INTERVAL_SECONDS: int = 5
+    WEBHOOK_INTERVAL_SECONDS: int = 3
+    WEBHOOK_MAX_ATTEMPTS: int = 6
+    WEBHOOK_TIMEOUT_SECONDS: int = 10
+
+    # Comma-separated LLM ids offered in GET /models (the runtime default is
+    # OPENAI_MODEL in .env.local).
+    AVAILABLE_LLM_MODELS: str = ""
+
     # --- Logging ---
     LOG_LEVEL: str = "INFO"
 
     # .env.local holds the local voice-provider credentials.
     model_config = SettingsConfigDict(env_file=(".env", ".env.local"), extra="ignore")
+
+    @property
+    def is_production_like(self) -> bool:
+        return self.APP_ENV.lower() not in ("development", "dev", "test", "testing", "local")
+
+    def assert_safe_for_environment(self) -> None:
+        """Refuse to boot a production-like environment with insecure defaults."""
+        if not self.is_production_like:
+            return
+        problems = []
+        if self.JWT_SECRET_KEY in ("", "change-this-secret-key") or len(self.JWT_SECRET_KEY) < 32:
+            problems.append("JWT_SECRET_KEY must be a random string of 32+ characters")
+        if not self.INBOUND_WEBHOOK_SECRET:
+            problems.append("INBOUND_WEBHOOK_SECRET must be set")
+        if not self.SECRETS_ENCRYPTION_KEY:
+            problems.append("SECRETS_ENCRYPTION_KEY must be set")
+        if self.DEBUG:
+            problems.append("DEBUG must be False")
+        if problems:
+            raise RuntimeError("Insecure configuration: " + "; ".join(problems))
 
     @property
     def cors_origins_list(self) -> List[str]:

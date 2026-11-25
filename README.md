@@ -1,3 +1,16 @@
+# Agni AI Backend
+
+> **v0.2 adds the full platform layer**: organizations + superadmin, credit ledger & billing,
+> API keys, signed/retried webhooks, campaign dialer worker, Exotel provider, analytics,
+> Cal.com / GoHighLevel integrations, security hardening. See **[docs/PLATFORM.md](docs/PLATFORM.md)**
+> for the architecture, endpoint map, production checklist and the honest list of what is not yet verified.
+>
+> Quick start: `pip install -r requirements.txt` -> copy `.env.example` to `.env` -> `alembic upgrade head`
+> -> `uvicorn app.main:app --reload` -> (dev) set `RUN_BACKGROUND_WORKERS=True` for the dialer/webhooks.
+> Tests: `pytest` (SQLite) or `TEST_DATABASE_URL=postgresql+psycopg2://... pytest tests/test_platform.py`.
+
+---
+
 # Agni AI Backend — Day 1 Setup
 
 Combined deliverable for:

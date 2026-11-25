@@ -204,6 +204,12 @@ from app.schemas.auth import (
 )
 
 
+from decimal import Decimal
+
+from app.core.config import settings
+from app.models.billing import TxType
+from app.services.billing import apply_transaction
+
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
@@ -236,10 +242,16 @@ def register(
         name=request.organization_name,
         email=request.email,
         phone=f"{request.phone_country_code}{request.phone_number}",
+        credit_balance=Decimal("0"),  # signup credits go through the ledger below
     )
 
     db.add(client)
     db.flush()
+    if settings.DEFAULT_SIGNUP_CREDITS > 0:
+        apply_transaction(
+            db, client.id, type=TxType.GRANT,
+            amount=Decimal(str(settings.DEFAULT_SIGNUP_CREDITS)), description="Signup credits",
+        )
 
     # Create new user and link it to the Client
     user = User(

@@ -149,7 +149,7 @@
 #             live_calls=live_calls,
 #             # Assumption: 1 credit per started minute. Change to your pricing rule.
 #             credits_used=math.ceil(total_minutes),
-#             credits_balance=current_user.credits,
+#             credits_balance=_org_balance(db, current_user),
 #             success_rate=month_success_rate,
 #             conversion_rate=_pct(converted, month_total),
 #         ),
@@ -188,6 +188,13 @@ from app.schemas.dashboard import (
     UsageTrends,
     WeeklyOutcome,
 )
+
+def _org_balance(db, user) -> float:
+    from app.models.client import Client
+
+    org = db.get(Client, user.client_id) if user.client_id else None
+    return float(org.credit_balance) if org is not None else 0.0
+
 
 router = APIRouter(
     prefix="/dashboard",

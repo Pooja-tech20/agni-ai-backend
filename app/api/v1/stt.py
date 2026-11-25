@@ -76,6 +76,8 @@ The endpoint sends JSON events back to the client:
 
 from __future__ import annotations
 
+import hmac
+
 import asyncio
 import logging
 
@@ -87,6 +89,7 @@ from fastapi import (
     WebSocketDisconnect,
 )
 
+from app.core.config import settings
 from app.services.streaming_stt_service import (
     DeepgramSTTService,
 )
@@ -227,6 +230,13 @@ async def stt_stream(
     # -----------------------------------------------------------------------
     # Accept WebSocket
     # -----------------------------------------------------------------------
+
+    # Only the agent subprocess (which knows STT_INTERNAL_TOKEN) may connect.
+    if settings.STT_INTERNAL_TOKEN:
+        supplied = websocket.query_params.get("token") or ""
+        if not hmac.compare_digest(supplied, settings.STT_INTERNAL_TOKEN):
+            await websocket.close(code=1008)
+            return
 
     await websocket.accept()
 

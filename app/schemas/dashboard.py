@@ -14,7 +14,7 @@
 #     active_agents: int
 #     live_calls: int
 #     credits_used: int
-#     credits_balance: int
+#     credits_balance: float
 #     success_rate: float
 #     conversion_rate: float
 

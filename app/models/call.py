@@ -44,7 +44,7 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text
 from sqlalchemy.dialects.postgresql import JSONB, UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -54,6 +54,10 @@ from app.models.mixins import TimestampMixin, UUIDPrimaryKeyMixin
 
 class Call(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     __tablename__ = "calls"
+    __table_args__ = (
+        Index("ix_calls_client_started", "client_id", "started_at"),
+        Index("ix_calls_provider_call_id", "provider_call_id"),
+    )
 
     client_id: Mapped[uuid.UUID] = mapped_column(
         UUID(as_uuid=True), ForeignKey("clients.id", ondelete="CASCADE"), nullable=False

@@ -140,6 +140,13 @@ END_REASON_HELP = {
     "max_duration": "The call reached the agent's maximum duration and was ended automatically.",
     "error": "The call stopped because of a technical error.",
 }
+def _org_balance(db, user) -> float | None:
+    from app.models.client import Client
+
+    org = db.get(Client, user.client_id) if user.client_id else None
+    return float(org.credit_balance) if org is not None else None
+
+
 admin_or_super = require_role(UserRole.ADMIN, UserRole.SUPERADMIN)
 
 StatusT = Literal["in_progress", "completed", "failed"]
@@ -204,7 +211,7 @@ class CallListResponse(BaseSchema):
     has_more: bool
     items: list[CallSummary]
     stats: CallStats                    # cards; ignores the status filter on purpose
-    credits_balance: int | None = None  # header "9.867 credits"
+    credits_balance: float | None = None  # header "9.867 credits"
     client_id: uuid.UUID | None = None
 
 
@@ -415,7 +422,7 @@ def list_calls(
         has_more=offset + len(rows) < total,
         items=[_summary(call, agent_name, agent_model) for call, agent_name, agent_model in rows],
         stats=stats,
-        credits_balance=getattr(current_user, "credits", None),
+        credits_balance=_org_balance(db, current_user),
         client_id=current_user.client_id,
     )
 

@@ -18,6 +18,8 @@ Expected server endpoint:
 from __future__ import annotations
 
 import asyncio
+import os
+from urllib.parse import quote
 import json
 from typing import Any
 
@@ -51,9 +53,14 @@ class STTStreamAdapter:
         if self.websocket is not None:
             return
 
-        self.websocket = await websockets.connect(self.endpoint)
+        endpoint = self.endpoint
+        token = os.getenv("STT_INTERNAL_TOKEN")
+        if token:
+            sep = "&" if "?" in endpoint else "?"
+            endpoint = f"{endpoint}{sep}token={quote(token)}"
+        self.websocket = await websockets.connect(endpoint)
 
-        print(f"Connected to streaming STT: {self.endpoint}")
+        print(f"Connected to streaming STT: {self.endpoint}")  # token is never logged
 
         # Start a background task to continuously receive transcripts/events.
         self.receive_task = asyncio.create_task(self._receive_loop())

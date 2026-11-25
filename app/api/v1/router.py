@@ -84,6 +84,18 @@ from app.api.v1.contacts import router as contacts_router
 from app.api.v1.campaigns import router as campaigns_router
 from app.api.v1.outbound import router as outbound_router
 from app.api.v1.inbound import router as inbound_router
+from app.core.rate_limit import rate_limit_chat
+from app.api.v1.organizations import router as organizations_router
+from app.api.v1.organization import router as organization_router
+from app.api.v1.billing import router as billing_router
+from app.api.v1.api_keys import router as api_keys_router
+from app.api.v1.webhooks import router as webhooks_router
+from app.api.v1.campaign_contacts import router as campaign_contacts_router
+from app.api.v1.contact_extras import router as contact_extras_router
+from app.api.v1.agent_extras import router as agent_extras_router
+from app.api.v1.analytics import router as analytics_router
+from app.api.v1.integrations import router as integrations_router
+from app.api.v1.telephony import router as telephony_router
 
 api_router = APIRouter()
 
@@ -98,6 +110,19 @@ api_router.include_router(contacts_router)        # campaign audience
 api_router.include_router(campaigns_router)       # outbound campaigns
 api_router.include_router(outbound_router)        # trigger outbound call
 api_router.include_router(inbound_router)         # inbound routes + webhook
+
+# --- Platform: organizations, billing, keys, webhooks, analytics, integrations ---
+api_router.include_router(organizations_router)   # superadmin: orgs, credits, stats, audit
+api_router.include_router(organization_router)    # my organization profile
+api_router.include_router(billing_router)         # balance, ledger, usage
+api_router.include_router(api_keys_router)        # X-Api-Key management
+api_router.include_router(webhooks_router)        # customer webhooks + deliveries
+api_router.include_router(campaign_contacts_router)  # campaign audience, resume
+api_router.include_router(contact_extras_router)  # notes, stats, activities
+api_router.include_router(agent_extras_router, dependencies=[Depends(get_current_user)])  # status, /models
+api_router.include_router(analytics_router)
+api_router.include_router(integrations_router)    # Cal.com / GHL + appointments
+api_router.include_router(telephony_router)       # provider callbacks (secret-protected)
 
 # --- Agent builder ---
 api_router.include_router(agents_router)          # includes POST /agents/full
@@ -120,7 +145,7 @@ api_router.include_router(catalog_router, dependencies=[Depends(get_current_user
 # Left public on purpose, like the upstream branch, because it is a website widget.
 # To require login, pass dependencies=[Depends(get_current_user)] below.
 chat_service = ChatService()
-api_router.include_router(create_chat_router(chat_service))
+api_router.include_router(create_chat_router(chat_service), dependencies=[Depends(rate_limit_chat)])
 # GET /api/v1/voice/health
 api_router.include_router(create_voice_health_router(session_manager), prefix="/voice")
 # WS /api/v1/stt/stream - unauthenticated on purpose: the agent subprocess connects
