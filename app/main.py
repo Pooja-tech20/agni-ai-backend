@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.v1.health import router as health_router
 from app.api.v1.router import api_router, session_manager
-from app.core.config import settings
+from app.core.config import Settings, settings
 from app.core.exceptions import register_exception_handlers
 from app.core.logging import get_logger, setup_logging
 from app.core.middleware import RequestIDMiddleware
@@ -45,7 +45,7 @@ app = FastAPI(
 # CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.cors_origins_list,
+    allow_origins=Settings().cors_origins_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
