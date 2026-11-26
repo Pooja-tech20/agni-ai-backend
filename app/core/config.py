@@ -20,11 +20,13 @@ class Settings(BaseSettings):
     DEBUG: bool = True
 
     # --- CORS ---
+    # --- CORS ---
     CORS_ORIGINS: str = (
     "http://localhost:3000,"
     "http://127.0.0.1:3000,"
     "http://localhost:5173,"
-    "http://127.0.0.1:5173"
+    "http://127.0.0.1:5173,"
+    "http://192.168.1.13:5173"
 )
 
     # --- Database ---
