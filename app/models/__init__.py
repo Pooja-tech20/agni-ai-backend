@@ -9,6 +9,7 @@ from app.models.user import User          # noqa: F401
 from app.models.client import Client      # noqa: F401
 from app.models.agent import Agent        # noqa: F401
 from app.models.knowledge_base import KnowledgeBase, KnowledgeSource
+from app.models.knowledge_chunk import KnowledgeChunk
 
 # --- Outbound / inbound calling ---
 from app.models.phone_number import PhoneNumber  # noqa: F401
@@ -48,4 +49,7 @@ __all__ = [
     "IntegrationAccount",
     "Appointment",
     "AuditLog",
+    "KnowledgeBase",
+    "KnowledgeSource",
+    "KnowledgeChunk",
 ]

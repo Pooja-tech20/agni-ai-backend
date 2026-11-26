@@ -215,3 +215,14 @@ curl -X POST localhost:8000/api/v1/voice/message \
   `app/core/config.py` — never hardcode connection strings.
 - CORS origins for local frontend dev are set via `CORS_ORIGINS` in `.env`
   (comma-separated).
+
+## Knowledge Base and RAG
+
+Supports manual text, PDF, DOCX, TXT, Markdown and website
+knowledge sources with automatic indexing, semantic retrieval,
+keyword fallback and voice agent integration.
+
+See [Knowledge Base and RAG Documentation](docs/KNOWLEDGE_BASE_RAG.md)
+for setup instructions, API integration and known limitations.
+
+PostgreSQL with pgvector support is required.

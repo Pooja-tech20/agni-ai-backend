@@ -104,9 +104,12 @@ class Settings(BaseSettings):
     # Block calls when an organization's balance is at or below this value.
     MIN_CREDITS_TO_CALL: float = 0.0
 
+    # --- Knowledge Base recovery ---
+    RUN_KNOWLEDGE_RECOVERY: bool = False
+
     # --- Background workers (dialer + webhook delivery) ---
     # Run them inside the API process. For production prefer a separate
-    # process:  python -m app.workers.run   (and set this to False on the API).
+    # process: python -m app.workers.run (and set this to False on the API).
     RUN_BACKGROUND_WORKERS: bool = False
     DIALER_INTERVAL_SECONDS: int = 5
     WEBHOOK_INTERVAL_SECONDS: int = 3

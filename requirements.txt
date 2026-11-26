@@ -34,3 +34,14 @@ websockets==17.1
 pytest==9.2.0
 pytest-asyncio==1.5.0
 httpx==0.28.1
+
+# Knowledge Base and RAG
+pgvector==0.5.1
+pymupdf==2.2
+python-docx==1.2.0
+beautifulsoup4==4.15.0
+tiktoken==0.14.0
+certifi==2026.11.20
+
+# Cross-platform timezone support
+tzdata==2026.6

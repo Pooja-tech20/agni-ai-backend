@@ -47,6 +47,9 @@ from livekit import api, rtc
 from scipy.signal import resample_poly
 
 from app.services.call_transcript import log_message
+from app.services.knowledge.voice_context import (
+    get_voice_knowledge_context,
+)
 from app.voice.elevenlabs_tts_provider import ElevenLabsTTSProvider
 from app.voice.livekit_audio_output import LiveKitAudioOutput
 from app.voice.openai_llm_provider import OpenAILLMProvider
@@ -129,6 +132,7 @@ SESSION_READY_FILE = os.getenv("AGNI_SESSION_READY_FILE")
 SESSION_RUNTIME_FILE = os.getenv("AGNI_SESSION_RUNTIME_FILE")
 
 SESSION_ID = os.getenv("AGNI_SESSION_ID")
+CALL_ID = os.getenv("AGNI_SESSION_CALL_ID")
 
 METRICS_DIR = (
     Path(tempfile.gettempdir())
@@ -338,10 +342,39 @@ async def process_ai_responses(
                 nonlocal first_llm_chunk_at
                 nonlocal llm_completed_at
 
-                llm_stream = llm_provider.stream_response(transcript)
-
                 try:
+                    rag_started_at = time.perf_counter()
+
+                    knowledge = await asyncio.to_thread(
+                        get_voice_knowledge_context,
+                        CALL_ID,
+                        transcript,
+                    )
+
+                    rag_latency_ms = (
+                        time.perf_counter() - rag_started_at
+                    ) * 1000
+
+                    print(
+                        "[RAG] "
+                        f"enabled={knowledge.enabled} | "
+                        f"chunks={knowledge.chunk_count} | "
+                        f"failed={knowledge.failed} | "
+                        f"latency={rag_latency_ms:.2f} ms"
+                    )
+
+                    if interrupt_event.is_set():
+                        return
+
+                    llm_stream = llm_provider.stream_response(
+                        transcript,
+                        knowledge_context=knowledge.context,
+                        knowledge_enabled=knowledge.enabled,
+                        knowledge_failed=knowledge.failed,
+                    )
+
                     async with contextlib.aclosing(llm_stream):
+
                         async for text_chunk in llm_stream:
                             if interrupt_event.is_set():
                                 return
