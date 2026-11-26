@@ -29,3 +29,8 @@ README_FIX.txt
 pooja_feature_sources.txt
 pooja_project_structure.txt
 requirements_before_cleanup.txt
+
+# Local RAG development environment
+.venv-integrated/
+uploads/knowledge_base_rag/
+agni_git_context.txt

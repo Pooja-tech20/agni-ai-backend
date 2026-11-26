@@ -1,6 +1,8 @@
 
 from contextlib import asynccontextmanager
 
+import asyncio
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -26,6 +28,22 @@ async def lifespan(app: FastAPI):
     )
     # Refuse to start production with default secrets / missing keys.
     settings.assert_safe_for_environment()
+
+    # Recover interrupted Knowledge Base ingestion jobs.
+    if settings.RUN_KNOWLEDGE_RECOVERY:
+
+        from app.services.knowledge.recovery import (
+            recover_interrupted_sources,
+        )
+
+        recovered = await asyncio.to_thread(
+            recover_interrupted_sources
+        )
+
+        logger.info(
+            "Knowledge recovery finished: %s jobs attempted",
+            recovered,
+        )
 
     workers = []
     if settings.RUN_BACKGROUND_WORKERS:

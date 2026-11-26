@@ -48,6 +48,24 @@ class KnowledgeSource(Base, UUIDPrimaryKeyMixin, TimestampMixin):
     status: Mapped[str] = mapped_column(
         String(50), default="active", server_default="active", nullable=False
     )
+    processing_status: Mapped[str] = mapped_column(
+        String(30),
+        default="pending",
+        server_default="pending",
+        nullable=False,
+    )
+
+    processing_error: Mapped[str | None] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    chunk_count: Mapped[int] = mapped_column(
+        Integer,
+        default=0,
+        server_default="0",
+        nullable=False,
+    )
     knowledge_base: Mapped["KnowledgeBase"] = relationship(back_populates="sources")
 
     def __repr__(self) -> str:

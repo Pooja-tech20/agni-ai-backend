@@ -77,6 +77,17 @@ class KnowledgeSourceResponse(BaseSchema):
     file_name: str | None
     file_size: int | None
     status: str
+
+    processing_status: Literal[
+        "pending",
+        "processing",
+        "completed",
+        "failed",
+    ] = "pending"
+
+    processing_error: str | None = None
+    chunk_count: int = 0
+
     created_at: datetime
     updated_at: datetime
 
