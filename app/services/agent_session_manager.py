@@ -258,6 +258,7 @@ class AgentSessionManager:
         # Resolve the public voice ID to its private provider voice ID.
         selected_voice_id: str | None = None
         provider_voice_id: str | None = None
+        selected_voice_gender: str | None = None
 
         if voice_id is not None:
             voice = get_voice_profile(voice_id)
@@ -289,6 +290,7 @@ class AgentSessionManager:
                 )
 
             selected_voice_id = voice.id
+            selected_voice_gender = voice.gender
 
         # Validate LiveKit settings before starting the worker.
         _ = self.livekit_url
@@ -337,6 +339,7 @@ class AgentSessionManager:
                 "AGNI_SESSION_SYSTEM_PROMPT": system_prompt or "",
                 "AGNI_SESSION_WELCOME_MESSAGE": welcome_message or "",
                 "AGNI_SESSION_VOICE_ID": provider_voice_id or "",
+                "AGNI_SESSION_VOICE_GENDER": selected_voice_gender or "",
                 "AGNI_SESSION_CALL_ID": call_id or "",
                 "AGNI_SESSION_ID": session_id,
                 "AGNI_SESSION_READY_FILE": str(ready_file),

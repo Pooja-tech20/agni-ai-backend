@@ -127,6 +127,7 @@ if SESSION_LANGUAGE not in SUPPORTED_SESSION_LANGUAGES:
 SYSTEM_PROMPT = os.getenv("AGNI_SESSION_SYSTEM_PROMPT") or None
 WELCOME_MESSAGE = os.getenv("AGNI_SESSION_WELCOME_MESSAGE") or None
 SESSION_VOICE_ID = os.getenv("AGNI_SESSION_VOICE_ID") or None
+SESSION_VOICE_GENDER = os.getenv("AGNI_SESSION_VOICE_GENDER") or None
 
 SESSION_READY_FILE = os.getenv("AGNI_SESSION_READY_FILE")
 SESSION_RUNTIME_FILE = os.getenv("AGNI_SESSION_RUNTIME_FILE")
@@ -966,9 +967,14 @@ async def main() -> None:
     llm_provider = OpenAILLMProvider(
         instructions=SYSTEM_PROMPT,
         response_language="auto",
+        voice_gender=SESSION_VOICE_GENDER,
     )
 
     print(f"LLM ready: {llm_provider.model}")
+    print(
+        "Voice gender: "
+        f"{llm_provider.voice_gender or 'unspecified'}"
+    )
     print(
         "LLM response language: "
         f"{llm_provider.response_language or 'auto'}"

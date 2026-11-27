@@ -34,3 +34,6 @@ requirements_before_cleanup.txt
 .venv-integrated/
 uploads/knowledge_base_rag/
 agni_git_context.txt
+
+# Generated voice preview audio
+uploads/voice_previews/

@@ -74,7 +74,18 @@ The initial session language preference must never lock the response language.
 Language behavior:
 - English input -> respond in English.
 - Hindi input -> respond naturally in Hindi using Devanagari.
-- Marathi input -> respond naturally in Marathi using Devanagari.
+- Marathi input -> respond naturally in standard Marathi using Devanagari.
+- When responding in Marathi, use correct Marathi vocabulary and grammar.
+- Never introduce Gujarati vocabulary or Gujarati script into Marathi responses.
+- Use "तुम्हाला" when addressing the caller, not Gujarati alternatives.
+- Correct Marathi examples:
+  "तुम्हाला कशाबद्दल मदत हवी आहे?"
+  "तुम्हाला कोणती माहिती हवी आहे?"
+  "तुम्हाला आणखी काही मदत हवी आहे का?"
+  "कृपया तुमची समस्या सांगा."
+- Check language consistency before generating the response.
+- For single-language input, maintain that language consistently.
+- Mix languages only when the caller mixes languages or explicitly requests it.
 - Hinglish input -> respond naturally in Hinglish.
 - If the caller mixes languages, mirror that mix naturally.
 - If the caller changes language, follow the latest utterance.
@@ -147,6 +158,50 @@ SESSION_LANGUAGE_INSTRUCTIONS = {
     ),
 }
 
+# ---------------------------------------------------------------------------
+# Gender-aware spoken responses
+# ---------------------------------------------------------------------------
+
+VOICE_GENDER_INSTRUCTIONS = {
+    "male": """
+Use masculine grammatical forms when referring to yourself
+in Hindi, Marathi, and Hinglish.
+
+Examples:
+- Hindi: मैं आपकी मदद कर सकता हूँ।
+- Marathi: मी तुमची मदत करू शकतो.
+- Hinglish: Main aapki help kar sakta hoon.
+
+Use natural masculine agreement wherever required.
+""".strip(),
+
+    "female": """
+Use feminine grammatical forms when referring to yourself
+in Hindi, Marathi, and Hinglish.
+
+Examples:
+- Hindi: मैं आपकी मदद कर सकती हूँ।
+- Marathi: मी तुमची मदत करू शकते.
+- Hinglish: Main aapki help kar sakti hoon.
+
+Use natural feminine agreement wherever required.
+""".strip(),
+}
+
+
+VOICE_GENDER_COMMON_INSTRUCTIONS = """
+These rules apply only to the assistant's own grammatical
+self-reference.
+
+Do not assume or change the caller's gender.
+Do not change the gender of other people mentioned by the caller.
+Do not modify quoted statements or retrieved business facts.
+Do not unnecessarily mention your voice gender.
+English responses should remain natural and gender-neutral.
+Continue following the existing language-selection rules.
+Preserve the configured agent persona and business instructions.
+Use the selected voice gender only for grammatical agreement.
+""".strip()
 
 class OpenAILLMProvider(LLMProvider):
     """
@@ -170,6 +225,7 @@ class OpenAILLMProvider(LLMProvider):
         instructions: str | None = None,
         max_output_tokens: int | None = None,
         response_language: str | None = None,
+        voice_gender: str | None = None,
     ) -> None:
 
         self.api_key = (
@@ -226,6 +282,18 @@ class OpenAILLMProvider(LLMProvider):
                     )
 
         # ------------------------------------------------------------------
+        # Resolve optional voice gender
+        # ------------------------------------------------------------------
+
+        normalized_gender = (voice_gender or "").strip().lower()
+
+        self.voice_gender: str | None = (
+            normalized_gender
+            if normalized_gender in VOICE_GENDER_INSTRUCTIONS
+            else None
+        )
+
+        # ------------------------------------------------------------------
         # Build instructions
         # ------------------------------------------------------------------
 
@@ -260,6 +328,18 @@ class OpenAILLMProvider(LLMProvider):
                 f"{AUTO_RESPONSE_LANGUAGE_INSTRUCTIONS}"
             )
 
+        # ------------------------------------------------------------------
+        # Append gender-aware grammatical instructions
+        # ------------------------------------------------------------------
+
+        if self.voice_gender is not None:
+
+            self.instructions += (
+                "\n\nVoice gender rule:\n"
+                f"{VOICE_GENDER_INSTRUCTIONS[self.voice_gender]}"
+                "\n\n"
+                f"{VOICE_GENDER_COMMON_INSTRUCTIONS}"
+            )
         # ------------------------------------------------------------------
         # Output limit
         # ------------------------------------------------------------------

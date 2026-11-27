@@ -1,3 +1,4 @@
+
 """
 Agni AI - Voice Registry
 
@@ -25,12 +26,11 @@ class VoiceProfile:
     languages: frozenset[str]
     provider: str
     provider_voice_env: str
+    selectable: bool = True
 
     @property
     def provider_voice_id(self) -> str | None:
-        value = os.getenv(
-            self.provider_voice_env
-        )
+        value = os.getenv(self.provider_voice_env)
 
         if not value:
             return None
@@ -54,34 +54,173 @@ SUPPORTED_VOICE_GENDERS = {
 }
 
 
+# Languages enabled following multilingual TTS sample testing.
+
+MULTILINGUAL_VOICE_LANGUAGES = frozenset({
+    "english",
+    "hindi",
+    "hinglish",
+    "marathi",
+})
+
+
 # ---------------------------------------------------------------------------
 # Voice profiles
 #
-# Do not add arbitrary provider voice IDs here.
+# Each production voice has:
 #
-# Each production voice should have:
+# - Stable Agni public ID
+# - Display name
+# - Gender
+# - Accent
+# - Supported languages
+# - Environment variable containing the provider voice ID
+# - Frontend selection visibility
 #
-# - stable Agni public ID
-# - display name
-# - gender
-# - accent
-# - supported languages
-# - environment variable containing the provider voice ID
-#
-# Profiles will be added once the actual ElevenLabs voices
-# for the Agni account have been selected.
+# Never hardcode actual ElevenLabs voice IDs in this file.
 # ---------------------------------------------------------------------------
 
 VOICE_PROFILES: dict[str, VoiceProfile] = {
+
+    # -----------------------------------------------------------------------
+    # Legacy voice - backward compatibility
+    #
+    # Existing agents can continue using this voice.
+    # Excluded from the new selectable voice list.
+    # -----------------------------------------------------------------------
+
     "aarav": VoiceProfile(
         id="aarav",
         name="Aarav",
         gender="male",
         accent="indian",
         accent_label="Indian",
-        languages=frozenset({"english", "hindi", "hinglish"}),
+        languages=frozenset({
+            "english",
+            "hindi",
+            "hinglish",
+        }),
         provider="elevenlabs",
         provider_voice_env="ELEVENLABS_VOICE_ID",
+        selectable=False,
+    ),
+
+    # -----------------------------------------------------------------------
+    # Female voices - multilingual
+    # -----------------------------------------------------------------------
+
+    "riya": VoiceProfile(
+        id="riya",
+        name="Riya Rao",
+        gender="female",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_RIYA",
+    ),
+
+    "monika": VoiceProfile(
+        id="monika",
+        name="Monika",
+        gender="female",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_MONIKA",
+    ),
+
+    "muskaan": VoiceProfile(
+        id="muskaan",
+        name="Muskaan",
+        gender="female",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_MUSKAAN",
+    ),
+
+    "anika": VoiceProfile(
+        id="anika",
+        name="Anika",
+        gender="female",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_ANIKA",
+    ),
+
+    "kalyani": VoiceProfile(
+        id="kalyani",
+        name="Kalyani",
+        gender="female",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_KALYANI",
+    ),
+
+    "mugdha": VoiceProfile(
+        id="mugdha",
+        name="Mugdha",
+        gender="female",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_MUGDHA",
+    ),
+
+    # -----------------------------------------------------------------------
+    # Male voices - multilingual
+    # -----------------------------------------------------------------------
+
+    "raju": VoiceProfile(
+        id="raju",
+        name="Raju",
+        gender="male",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_RAJU",
+    ),
+
+    "bunty": VoiceProfile(
+        id="bunty",
+        name="Bunty",
+        gender="male",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_BUNTY",
+    ),
+
+    "vinayak": VoiceProfile(
+        id="vinayak",
+        name="Vinayak",
+        gender="male",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_VINAYAK",
+    ),
+
+    "shrey": VoiceProfile(
+        id="shrey",
+        name="Shrey",
+        gender="male",
+        accent="indian",
+        accent_label="Indian",
+        languages=MULTILINGUAL_VOICE_LANGUAGES,
+        provider="elevenlabs",
+        provider_voice_env="ELEVENLABS_VOICE_ID_SHREY",
     ),
 }
 
@@ -100,13 +239,16 @@ def get_voice_profile(
         .lower()
     )
 
-    return VOICE_PROFILES.get(
-        normalized
-    )
+    return VOICE_PROFILES.get(normalized)
 
 
-def get_configured_voices(
-) -> list[VoiceProfile]:
+# ---------------------------------------------------------------------------
+# Configured voices
+#
+# Includes legacy voices for backward compatibility.
+# ---------------------------------------------------------------------------
+
+def get_configured_voices() -> list[VoiceProfile]:
 
     return [
         voice
@@ -114,6 +256,26 @@ def get_configured_voices(
         if voice.configured
     ]
 
+
+# ---------------------------------------------------------------------------
+# Selectable voices
+#
+# Only configured voices available for new frontend voice selection.
+# Legacy voices are excluded.
+# ---------------------------------------------------------------------------
+
+def get_selectable_voices() -> list[VoiceProfile]:
+
+    return [
+        voice
+        for voice in get_configured_voices()
+        if voice.selectable
+    ]
+
+
+# ---------------------------------------------------------------------------
+# Accent filtering
+# ---------------------------------------------------------------------------
 
 def get_available_accents(
     *,
@@ -129,18 +291,24 @@ def get_available_accents(
             .lower()
         )
 
-        voices = [
-            voice
-            for voice in voices
-            if normalized_language
-            in voice.languages
-        ]
+        # Auto-detect is a session mode, not a spoken language.
+        # All configured voices are available in auto mode.
+        if normalized_language != "auto":
+            voices = [
+                voice
+                for voice in voices
+                if normalized_language in voice.languages
+            ]
 
     return {
         voice.accent
         for voice in voices
     }
 
+
+# ---------------------------------------------------------------------------
+# Voice filtering
+# ---------------------------------------------------------------------------
 
 def filter_voices(
     *,
@@ -151,6 +319,7 @@ def filter_voices(
 
     voices = get_configured_voices()
 
+    # Language filtering
     if language is not None:
         normalized_language = (
             language
@@ -158,13 +327,16 @@ def filter_voices(
             .lower()
         )
 
-        voices = [
-            voice
-            for voice in voices
-            if normalized_language
-            in voice.languages
-        ]
+        # Auto mode permits all configured voices.
+        # Fixed-language sessions retain strict language filtering.
+        if normalized_language != "auto":
+            voices = [
+                voice
+                for voice in voices
+                if normalized_language in voice.languages
+            ]
 
+    # Accent filtering
     if accent is not None:
         normalized_accent = (
             accent
@@ -175,10 +347,10 @@ def filter_voices(
         voices = [
             voice
             for voice in voices
-            if voice.accent
-            == normalized_accent
+            if voice.accent == normalized_accent
         ]
 
+    # Gender filtering
     if gender is not None:
         normalized_gender = (
             gender
@@ -189,8 +361,7 @@ def filter_voices(
         voices = [
             voice
             for voice in voices
-            if voice.gender
-            == normalized_gender
+            if voice.gender == normalized_gender
         ]
 
     return voices
