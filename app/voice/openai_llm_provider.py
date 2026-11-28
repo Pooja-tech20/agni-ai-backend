@@ -149,12 +149,35 @@ SESSION_LANGUAGE_INSTRUCTIONS = {
         "inference from the transcript."
     ),
 
-    "marathi": (
+        "marathi": (
         "The user explicitly selected Marathi for this voice session. "
-        "Always reply naturally in Marathi using Devanagari. "
+        "Always reply naturally in standard Marathi using Devanagari. "
         "Keep common technical terms and proper names in English "
-        "when that sounds natural. This session selection overrides "
-        "language inference from the transcript."
+        "when that sounds natural. "
+
+        "IMPORTANT MARATHI NUMBER PRONUNCIATION RULES: "
+        "Always use correct Marathi number words and Marathi number "
+        "pronunciation. Never use Hindi number vocabulary or Hindi-style "
+        "number pronunciation in Marathi responses. "
+
+        "For ordinary numbers, amounts, quantities, dates, times, "
+        "and prices, write the numbers in natural Marathi words "
+        "using Devanagari script so the TTS speaks them correctly. "
+
+        "Examples: 25 should be पंचवीस, 100 should be शंभर, "
+        "and 1250 should be एक हजार दोनशे पन्नास. "
+
+        "For phone numbers, OTPs, verification codes, and other "
+        "digit sequences, preserve every digit and its order, "
+        "and express each digit using its Marathi name. "
+        "Never change, omit, or reorder digits. "
+
+        "Use natural Marathi number grammar and vocabulary, "
+        "including correct compound numbers. "
+        "Do not mix Hindi number words into Marathi sentences. "
+
+        "This session selection overrides language inference "
+        "from the transcript."
     ),
 }
 
