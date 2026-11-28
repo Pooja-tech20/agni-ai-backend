@@ -128,8 +128,25 @@ def _user_display_name(user: User) -> str | None:
 
 
 def _agent_language(agent: Agent) -> str:
-    """Resolve the default language from the Agent Builder configuration."""
+    """Resolve the primary language selected in Agent Builder."""
     builder = (agent.agent_metadata or {}).get("builder", {})
+
+    primary_language = builder.get("accent_language")
+
+    if isinstance(primary_language, str):
+        normalized = primary_language.strip().lower()
+
+        aliases = {
+            "en": "english",
+            "hi": "hindi",
+            "mr": "marathi",
+        }
+
+        normalized = aliases.get(normalized, normalized)
+
+        if normalized in SUPPORTED_AGENT_LANGUAGES:
+            return normalized
+
     accent_languages = builder.get("accent_languages", [])
 
     if isinstance(accent_languages, str):
@@ -139,7 +156,7 @@ def _agent_language(agent: Agent) -> str:
         if not isinstance(label, str):
             continue
 
-        normalized = label.lower()
+        normalized = label.strip().lower()
 
         for language in ("hinglish", "hindi", "marathi", "english", "auto"):
             if language in normalized:

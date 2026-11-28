@@ -1107,6 +1107,41 @@ async def main() -> None:
 
         # Speak the optional welcome message.
         if WELCOME_MESSAGE:
+            welcome_text = WELCOME_MESSAGE
+
+            # Generate the welcome message in the selected accent language.
+            if SESSION_LANGUAGE not in ("auto", "english"):
+
+                try:
+                    welcome_llm = OpenAILLMProvider(
+                        instructions=SYSTEM_PROMPT,
+                        response_language=SESSION_LANGUAGE,
+                        voice_gender=SESSION_VOICE_GENDER,
+                    )
+
+                    welcome_chunks = []
+
+                    async for chunk in welcome_llm.stream_response(
+                        "Translate the following welcome message into "
+                        f"natural spoken {SESSION_LANGUAGE}. "
+                        "Preserve its original meaning and agent persona. "
+                        "Return only the translated message, without "
+                        "explanations or additional text:\n\n"
+                        f"{WELCOME_MESSAGE}"
+                    ):
+                        welcome_chunks.append(chunk)
+
+                    translated_welcome = "".join(welcome_chunks).strip()
+
+                    if translated_welcome:
+                        welcome_text = translated_welcome
+
+                except Exception:
+                    print(
+                        "Welcome translation failed. "
+                        "Using the original welcome message."
+                    )
+            
             print()
             print("Speaking welcome message...")
 
@@ -1116,7 +1151,7 @@ async def main() -> None:
 
             async def consume_welcome_audio() -> None:
                 async for audio_chunk in tts_provider.synthesize(
-                    WELCOME_MESSAGE
+                    welcome_text
                 ):
                     if interrupt_event.is_set():
                         return
@@ -1166,11 +1201,11 @@ async def main() -> None:
                     if interrupt_event.is_set():
                         print("Welcome message interrupted.")
                     else:
-                        log_message("agent", WELCOME_MESSAGE)
+                        log_message("agent", welcome_text)
 
                         await runtime_state.add_message(
                             "assistant",
-                            WELCOME_MESSAGE,
+                            welcome_text,
                         )
 
                         print("Welcome message finished.")

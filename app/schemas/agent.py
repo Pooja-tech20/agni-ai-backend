@@ -858,9 +858,8 @@ class AgentCreateRequest(StrictSchema):
                 if self.voice
                 else None
             ),
-            "accent_languages": (
-                self.accent.languages
-            ),
+            "accent_language": self.accent.language,
+            "accent_languages": self.accent.languages,
         }
 
         return {
